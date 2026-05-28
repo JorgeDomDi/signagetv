@@ -1,0 +1,6 @@
+#!/bin/sh
+# Minimal placeholder. Android Studio will regenerate the full wrapper on first sync,
+# or you can run `gradle wrapper --gradle-version 8.5` from a machine that already has
+# Gradle installed.
+DIR=$(cd "$(dirname "$0")" && pwd)
+exec gradle -p "$DIR" "$@"

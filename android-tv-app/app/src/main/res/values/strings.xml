@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SignageTV</string>
+
+    <!-- Login -->
+    <string name="login_title">SignageTV</string>
+    <string name="login_subtitle">Inicia sesión en el local</string>
+    <string name="hint_server_url">URL del servidor (ej. http://192.168.1.10:8080)</string>
+    <string name="hint_username">Usuario del local</string>
+    <string name="hint_password">Contraseña</string>
+    <string name="btn_login">Entrar</string>
+    <string name="error_empty_fields">Completa todos los campos</string>
+    <string name="error_login">No se pudo iniciar sesión: %1$s</string>
+    <string name="login_in_progress">Conectando…</string>
+
+    <!-- Playlist select -->
+    <string name="select_title">Selecciona una playlist</string>
+    <string name="auto_schedule">Automático según horario</string>
+    <string name="auto_schedule_subtitle">La TV cambiará de playlist según los horarios configurados</string>
+    <string name="no_playlists">No hay playlists creadas todavía</string>
+    <string name="logout">Cerrar sesión</string>
+
+    <!-- Player -->
+    <string name="player_loading">Cargando contenido…</string>
+    <string name="player_no_content">No hay contenido para reproducir</string>
+    <string name="player_back_hint">Mantén ATRÁS 3 s para volver al selector</string>
+</resources>

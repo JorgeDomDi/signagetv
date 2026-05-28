@@ -1,0 +1,50 @@
+# ============= Entorno y secretos =============
+.env
+.env.local
+.env.*.local
+*.log
+
+# Scripts locales (contienen credenciales locales y rutas absolutas de Windows)
+run-backend.ps1
+run-admin.ps1
+runpkg.cmd
+debug-build.bat
+build-apk.bat
+gen-classpath.bat
+
+# ============= Herramientas descargadas (pesadas, regenerar en VPS) =============
+tools/
+
+# ============= Datos locales =============
+data/
+media/
+
+# ============= Node / React =============
+node_modules/
+admin-panel/dist/
+admin-panel/.vite/
+.npm/
+
+# ============= Java / Maven =============
+backend/target/
+*.class
+backend/.mvn/wrapper/maven-wrapper.jar
+
+# ============= Android =============
+android-tv-app/.gradle/
+android-tv-app/build/
+android-tv-app/app/build/
+android-tv-app/local.properties
+android-tv-app/captures/
+android-tv-app/.idea/
+android-tv-app/*.iml
+android-tv-app/app/release/
+android-tv-app/.kotlin/
+
+# ============= IDE / SO =============
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

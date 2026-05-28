@@ -1,0 +1,15 @@
+spring:
+  jpa:
+    show-sql: false
+  flyway:
+    clean-disabled: true
+
+app:
+  storage:
+    path: ${STORAGE_PATH:./storage/media}
+  seed:
+    enabled: true
+
+logging:
+  level:
+    com.signagetv: DEBUG

@@ -1,0 +1,75 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: signagetv-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass_change_me}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-signagetv}
+      MYSQL_USER: ${MYSQL_USER:-signagetv}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-signagetv_change_me}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpass_change_me}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - signagenet
+
+  backend:
+    build:
+      context: ./backend
+    container_name: signagetv-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-signagetv}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true
+      DB_USER: ${MYSQL_USER:-signagetv}
+      DB_PASS: ${MYSQL_PASSWORD:-signagetv_change_me}
+      JWT_SECRET: ${JWT_SECRET:-please_change_this_to_a_long_random_string_at_least_64_chars_long}
+      STORAGE_PATH: /var/signagetv/media
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+    volumes:
+      - media_data:/var/signagetv/media
+    networks:
+      - signagenet
+
+  admin:
+    build:
+      context: ./admin-panel
+    container_name: signagetv-admin
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - signagenet
+
+  nginx:
+    image: nginx:alpine
+    container_name: signagetv-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+      - admin
+    networks:
+      - signagenet
+
+volumes:
+  mysql_data:
+  media_data:
+
+networks:
+  signagenet:
+    driver: bridge
