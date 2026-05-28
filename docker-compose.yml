@@ -35,7 +35,7 @@ services:
       - signagenet
 
   nginx:
-    image: nginx:alpine
+    image: public.ecr.aws/nginx/nginx:alpine
     container_name: signagetv-nginx
     restart: unless-stopped
     ports:
