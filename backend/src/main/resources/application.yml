@@ -40,7 +40,7 @@ server:
 app:
   jwt:
     secret: ${JWT_SECRET:change-me-in-production-this-is-a-dev-only-secret-key-min-32-bytes-long}
-    expiration-hours: 24
+    expiration-hours: 87600   # ~10 anos: las TVs no piden credenciales de nuevo al reiniciarse
   storage:
     path: ${STORAGE_PATH:/var/signagetv/media}
   public-base-url: ${PUBLIC_BASE_URL:}
