@@ -1,7 +1,7 @@
 package com.signagetv;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
