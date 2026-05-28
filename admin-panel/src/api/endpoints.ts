@@ -34,6 +34,9 @@ export const media = {
     return client
       .post<MediaItem>('/media/upload', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 30 * 60 * 1000, // 30 minutos para videos pesados
+        maxBodyLength: 1024 * 1024 * 1024,
+        maxContentLength: 1024 * 1024 * 1024,
         onUploadProgress: (evt) => {
           if (!evt.total || !onProgress) return;
           onProgress(Math.round((evt.loaded / evt.total) * 100));
