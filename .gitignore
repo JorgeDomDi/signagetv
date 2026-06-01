@@ -12,11 +12,21 @@ debug-build.bat
 build-apk.bat
 gen-classpath.bat
 
+# Manual con credenciales (privado)
+ADMIN.md
+.vps_secrets.txt
+tmp_*.conf
+tmp_*.json
+tmp_*.sql
+tmp_*.env
+tmp_*.sh
+SignageTV.apk
+
 # ============= Herramientas descargadas (pesadas, regenerar en VPS) =============
 tools/
 
 # ============= Datos locales =============
-data/
+/data/
 media/
 
 # ============= Node / React =============

@@ -122,32 +122,12 @@ public class PlaylistService {
 
     /**
      * Versión interna para uso desde TvService — devuelve la playlist con items.
-     * Expande los videos con repeat_count > 1 en N copias consecutivas, de modo que
-     * la app de TV (que no conoce repeat_count) los reproduzca repetidos sin cambios.
+     * Cada item incluye repeat_count; la app de TV reproduce el video en loop nativo
+     * esa cantidad de veces (sin cortes) antes de avanzar al siguiente item.
      */
     public PlaylistDto buildPlaylistDto(Playlist p) {
         List<PlaylistItem> items = itemRepo.findByPlaylistIdOrderByPositionAsc(p.getId());
-        List<PlaylistItemDto> dtos = buildItemDtos(items, p.getLocalId());
-        List<PlaylistItemDto> expanded = new java.util.ArrayList<>();
-        int pos = 0;
-        for (PlaylistItemDto d : dtos) {
-            int times = 1;
-            if (d.getMedia() != null
-                    && "VIDEO".equalsIgnoreCase(d.getMedia().getType())
-                    && d.getRepeatCount() != null && d.getRepeatCount() > 1) {
-                times = d.getRepeatCount();
-            }
-            for (int i = 0; i < times; i++) {
-                expanded.add(PlaylistItemDto.builder()
-                        .id(d.getId())
-                        .position(pos++)
-                        .durationSeconds(d.getDurationSeconds())
-                        .repeatCount(1)
-                        .media(d.getMedia())
-                        .build());
-            }
-        }
-        return toDto(p, expanded);
+        return toDto(p, buildItemDtos(items, p.getLocalId()));
     }
 
     private List<PlaylistItemDto> buildItemDtos(List<PlaylistItem> items, Long localId) {

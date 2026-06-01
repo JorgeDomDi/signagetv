@@ -133,8 +133,17 @@ class PlayerActivity : AppCompatActivity() {
                     current = pl
                     startLoop()
                 } else {
-                    pendingPlaylist = pl
-                    Logger.i("New playlist queued; will swap at item boundary")
+                    // Solo reprogramar (y por tanto reiniciar la lista en el proximo
+                    // limite de item) si la playlist cambio de verdad. Asi el poll de
+                    // 60s o un refresh no reinician una lista que sigue igual.
+                    val cur = current
+                    val changed = cur == null || cur.id != pl.id || cur.updatedAt != pl.updatedAt
+                    if (changed) {
+                        pendingPlaylist = pl
+                        Logger.i("Playlist changed; will swap at item boundary")
+                    } else {
+                        Logger.d("Playlist unchanged; continuing current loop")
+                    }
                 }
             } catch (t: Throwable) {
                 Logger.e("fetchAndStart failed", t)
@@ -225,7 +234,14 @@ class PlayerActivity : AppCompatActivity() {
         val file = ensureCached(item.media.url)
         val uri = file?.toURI()?.toString() ?: item.media.url
         val player = exoPlayer ?: return
-        player.setMediaItem(MediaItem.fromUri(uri))
+
+        // Repeticiones: encolamos el mismo video N veces en el propio reproductor.
+        // ExoPlayer reproduce la cola de forma continua (sin corte negro) y dispara
+        // STATE_ENDED recien al terminar la ultima repeticion -> avanza al siguiente item.
+        val repeat = (item.repeatCount ?: 1).coerceIn(1, 100)
+        val mediaItems = (1..repeat).map { MediaItem.fromUri(uri) }
+        advancePending = false
+        player.setMediaItems(mediaItems)
         player.prepare()
         player.playWhenReady = true
 
