@@ -36,6 +36,7 @@ interface EditorItem {
   uid: string;
   media: MediaItem;
   duration_seconds: number | null;
+  repeat_count: number; // veces que se reproduce (solo videos); 1 = una vez
 }
 
 const TRANSITIONS: TransitionType[] = ['FADE', 'SLIDE', 'ZOOM', 'NONE'];
@@ -89,6 +90,7 @@ export default function PlaylistEditor() {
           uid: buildUid('it'),
           media: m,
           duration_seconds: it.duration_seconds ?? null,
+          repeat_count: it.repeat_count ?? 1,
         } satisfies EditorItem;
       })
       .filter((x): x is EditorItem => x !== null);
@@ -119,7 +121,7 @@ export default function PlaylistEditor() {
   function addFromLibrary(m: MediaItem) {
     setItems((prev) => [
       ...prev,
-      { uid: buildUid('it'), media: m, duration_seconds: null },
+      { uid: buildUid('it'), media: m, duration_seconds: null, repeat_count: 1 },
     ]);
     setDirty(true);
   }
@@ -132,6 +134,14 @@ export default function PlaylistEditor() {
   function updateDuration(index: number, value: number | null) {
     setItems((prev) =>
       prev.map((it, i) => (i === index ? { ...it, duration_seconds: value } : it)),
+    );
+    setDirty(true);
+  }
+
+  function updateRepeat(index: number, value: number) {
+    const v = Math.min(100, Math.max(1, value || 1));
+    setItems((prev) =>
+      prev.map((it, i) => (i === index ? { ...it, repeat_count: v } : it)),
     );
     setDirty(true);
   }
@@ -161,6 +171,7 @@ export default function PlaylistEditor() {
         uid: buildUid('it'),
         media: m,
         duration_seconds: null,
+        repeat_count: 1,
       };
       setItems((prev) => {
         const next = prev.slice();
@@ -195,6 +206,7 @@ export default function PlaylistEditor() {
         position: idx,
         duration_seconds:
           it.media.type === 'IMAGE' ? it.duration_seconds ?? null : null,
+        repeat_count: it.media.type === 'VIDEO' ? it.repeat_count ?? 1 : 1,
       }));
       await playlistsApi.setItems(playlistId, payload);
 
@@ -485,6 +497,25 @@ export default function PlaylistEditor() {
                                 }}
                               />
                               <span className="text-xs text-gray-500">s</span>
+                            </div>
+                          )}
+
+                          {it.media.type === 'VIDEO' && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-gray-500">×</span>
+                              <input
+                                type="number"
+                                min={1}
+                                max={100}
+                                value={it.repeat_count}
+                                title="Cuántas veces se reproduce el video"
+                                className="input w-20 text-right"
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  updateRepeat(idx, v === '' ? 1 : parseInt(v, 10) || 1);
+                                }}
+                              />
+                              <span className="text-xs text-gray-500">veces</span>
                             </div>
                           )}
 

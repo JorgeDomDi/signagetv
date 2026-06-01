@@ -79,6 +79,7 @@ export interface PlaylistItem {
   media_item_id: number;
   position: number;
   duration_seconds?: number | null;
+  repeat_count?: number | null;
   // Hidratado por el cliente cuando el backend incluye el media expandido
   media?: MediaItem;
 }

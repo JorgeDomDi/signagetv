@@ -25,4 +25,8 @@ public class PlaylistItem {
 
     @Column(name = "duration_seconds")
     private Integer durationSeconds;
+
+    /** Cuantas veces se reproduce el item (solo aplica a videos). Default 1. */
+    @Column(name = "repeat_count", nullable = false)
+    private Integer repeatCount;
 }

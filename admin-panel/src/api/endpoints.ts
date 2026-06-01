@@ -83,6 +83,7 @@ export const playlists = {
           media_item_id: it.media_item_id,
           position: it.position,
           duration_seconds: it.duration_seconds ?? null,
+          repeat_count: it.repeat_count ?? 1,
         })),
       })
       .then((r) => r.data),

@@ -13,5 +13,6 @@ public class PlaylistItemsReplaceRequest {
         private Long mediaItemId;
         private Integer position;
         private Integer durationSeconds;
+        private Integer repeatCount;
     }
 }

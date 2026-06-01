@@ -13,5 +13,6 @@ public class PlaylistItemDto {
     private Long id;
     private Integer position;
     private Integer durationSeconds;
+    private Integer repeatCount;
     private MediaItemDto media;
 }

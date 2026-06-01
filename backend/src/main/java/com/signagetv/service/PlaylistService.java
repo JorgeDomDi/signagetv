@@ -97,11 +97,14 @@ public class PlaylistService {
 
             int idx = 0;
             for (PlaylistItemsReplaceRequest.Item it : req.getItems()) {
+                Integer rc = it.getRepeatCount();
+                int repeat = (rc == null || rc < 1) ? 1 : Math.min(rc, 100);
                 PlaylistItem pli = PlaylistItem.builder()
                         .playlistId(p.getId())
                         .mediaItemId(it.getMediaItemId())
                         .position(it.getPosition() != null ? it.getPosition() : idx)
                         .durationSeconds(it.getDurationSeconds())
+                        .repeatCount(repeat)
                         .build();
                 itemRepo.save(pli);
                 idx++;
@@ -117,10 +120,34 @@ public class PlaylistService {
         return toDto(p, buildItemDtos(items, localId));
     }
 
-    /** Versión interna para uso desde TvService — devuelve la playlist con items. */
+    /**
+     * Versión interna para uso desde TvService — devuelve la playlist con items.
+     * Expande los videos con repeat_count > 1 en N copias consecutivas, de modo que
+     * la app de TV (que no conoce repeat_count) los reproduzca repetidos sin cambios.
+     */
     public PlaylistDto buildPlaylistDto(Playlist p) {
         List<PlaylistItem> items = itemRepo.findByPlaylistIdOrderByPositionAsc(p.getId());
-        return toDto(p, buildItemDtos(items, p.getLocalId()));
+        List<PlaylistItemDto> dtos = buildItemDtos(items, p.getLocalId());
+        List<PlaylistItemDto> expanded = new java.util.ArrayList<>();
+        int pos = 0;
+        for (PlaylistItemDto d : dtos) {
+            int times = 1;
+            if (d.getMedia() != null
+                    && "VIDEO".equalsIgnoreCase(d.getMedia().getType())
+                    && d.getRepeatCount() != null && d.getRepeatCount() > 1) {
+                times = d.getRepeatCount();
+            }
+            for (int i = 0; i < times; i++) {
+                expanded.add(PlaylistItemDto.builder()
+                        .id(d.getId())
+                        .position(pos++)
+                        .durationSeconds(d.getDurationSeconds())
+                        .repeatCount(1)
+                        .media(d.getMedia())
+                        .build());
+            }
+        }
+        return toDto(p, expanded);
     }
 
     private List<PlaylistItemDto> buildItemDtos(List<PlaylistItem> items, Long localId) {
@@ -136,6 +163,7 @@ public class PlaylistService {
                         .id(pi.getId())
                         .position(pi.getPosition())
                         .durationSeconds(pi.getDurationSeconds())
+                        .repeatCount(pi.getRepeatCount() != null ? pi.getRepeatCount() : 1)
                         .media(mediaService.toDto(mediaById.get(pi.getMediaItemId())))
                         .build())
                 .toList();
