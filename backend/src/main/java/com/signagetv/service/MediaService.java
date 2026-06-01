@@ -21,6 +21,7 @@ public class MediaService {
 
     private final MediaItemRepository mediaRepo;
     private final StorageService storageService;
+    private final ThumbnailService thumbnailService;
     private final UrlBuilder urlBuilder;
 
     @Transactional
@@ -30,10 +31,17 @@ public class MediaService {
 
         StorageService.StoredFile stored = storageService.store(localId, file);
 
+        // Para imágenes, generamos una miniatura de baja resolución para el panel admin.
+        String thumbPath = null;
+        if (type == MediaType.IMAGE) {
+            thumbPath = thumbnailService.generate(stored.absolutePath());
+        }
+
         MediaItem item = MediaItem.builder()
                 .localId(localId)
                 .filename(stored.originalName())
                 .storagePath(stored.absolutePath())
+                .thumbnailPath(thumbPath)
                 .type(type)
                 .mimeType(mime)
                 .sizeBytes(file.getSize())
@@ -55,12 +63,40 @@ public class MediaService {
         MediaItem item = mediaRepo.findByIdAndLocalId(id, localId)
                 .orElseThrow(() -> new NotFoundException("Media no encontrado"));
         storageService.delete(item.getStoragePath());
+        if (item.getThumbnailPath() != null) {
+            storageService.delete(item.getThumbnailPath());
+        }
         mediaRepo.delete(item);
     }
 
     public MediaItem getOwned(Long localId, Long id) {
         return mediaRepo.findByIdAndLocalId(id, localId)
                 .orElseThrow(() -> new NotFoundException("Media no encontrado"));
+    }
+
+    /**
+     * Devuelve la ruta de la miniatura de una imagen, generándola al vuelo si todavía
+     * no existe (caso de imágenes subidas antes de esta funcionalidad). Si no se puede
+     * generar (p. ej. es un video o el formato no es legible), devuelve {@code null}
+     * para que el caller degrade al archivo original.
+     */
+    @Transactional
+    public String resolveThumbnailPath(Long localId, Long id) {
+        MediaItem item = getOwned(localId, id);
+        if (item.getType() != MediaType.IMAGE) return null;
+
+        String thumb = item.getThumbnailPath();
+        if (thumb != null && java.nio.file.Files.exists(java.nio.file.Paths.get(thumb))) {
+            return thumb;
+        }
+
+        // Generación lazy + persistencia de la ruta.
+        String generated = thumbnailService.generate(item.getStoragePath());
+        if (generated != null) {
+            item.setThumbnailPath(generated);
+            mediaRepo.save(item);
+        }
+        return generated;
     }
 
     public MediaItemDto toDto(MediaItem m) {
@@ -72,6 +108,7 @@ public class MediaService {
                 .sizeBytes(m.getSizeBytes())
                 .durationSeconds(m.getDurationSeconds())
                 .url(urlBuilder.mediaFileUrl(m.getId()))
+                .thumbnailUrl(m.getType() == MediaType.IMAGE ? urlBuilder.mediaThumbUrl(m.getId()) : null)
                 .createdAt(m.getCreatedAt())
                 .build();
     }

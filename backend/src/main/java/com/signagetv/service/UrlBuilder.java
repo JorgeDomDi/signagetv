@@ -21,6 +21,11 @@ public class UrlBuilder {
         return base + "/api/v1/media/" + mediaItemId + "/file";
     }
 
+    public String mediaThumbUrl(Long mediaItemId) {
+        String base = resolveBase();
+        return base + "/api/v1/media/" + mediaItemId + "/thumb";
+    }
+
     private String resolveBase() {
         if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
             return stripTrailingSlash(publicBaseUrl);

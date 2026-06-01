@@ -513,19 +513,19 @@ export default function PlaylistEditor() {
 
 function LibraryThumb({ item, small }: { item: MediaItem; small?: boolean }) {
   const size = small ? 'h-10 w-14' : 'h-12 w-16';
+  // Videos: solo icono (no descargamos el archivo). Imágenes: miniatura liviana.
   if (item.type === 'VIDEO') {
     return (
-      <div className={`relative ${size} shrink-0 overflow-hidden rounded-md bg-gray-100`}>
-        <video src={mediaApi.fileUrl(item.id)} preload="metadata" muted className="h-full w-full object-cover" />
-        <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/30">
-          <Film className="h-3 w-3 text-white" />
+      <div className={`relative ${size} shrink-0 overflow-hidden rounded-md bg-gray-900/90`}>
+        <div className="grid h-full w-full place-items-center">
+          <Film className="h-4 w-4 text-gray-300" />
         </div>
       </div>
     );
   }
   return (
     <img
-      src={mediaApi.fileUrl(item.id)}
+      src={mediaApi.thumbUrl(item.id)}
       alt={item.filename}
       className={`${size} shrink-0 rounded-md object-cover`}
       loading="lazy"

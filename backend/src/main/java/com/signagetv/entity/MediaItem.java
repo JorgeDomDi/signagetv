@@ -28,6 +28,10 @@ public class MediaItem {
     @Column(name = "storage_path", nullable = false, length = 500)
     private String storagePath;
 
+    /** Ruta en disco de la miniatura de baja resolución (solo imágenes). NULL si aún no se generó. */
+    @Column(name = "thumbnail_path", length = 500)
+    private String thumbnailPath;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MediaType type;

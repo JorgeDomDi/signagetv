@@ -18,6 +18,7 @@ public class MediaItemDto {
     private String mimeType;
     private Long sizeBytes;
     private Integer durationSeconds;
-    private String url;             // URL absoluta para descarga
+    private String url;             // URL absoluta del archivo original (usado por la app TV)
+    private String thumbnailUrl;    // URL de la miniatura de baja resolución (panel admin); null en videos
     private LocalDateTime createdAt;
 }

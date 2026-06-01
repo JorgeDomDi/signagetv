@@ -55,6 +55,16 @@ export const media = {
     const qs = token ? `?token=${encodeURIComponent(token)}` : '';
     return `${API_BASE}/api/v1/media/${id}/file${qs}`;
   },
+  /**
+   * URL de la miniatura de baja resolución (solo imágenes), para previsualizar
+   * en el panel sin descargar el archivo original de varios MB. El backend
+   * (JwtFilter) acepta el token por query param también para .../thumb.
+   */
+  thumbUrl: (id: number) => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const qs = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `${API_BASE}/api/v1/media/${id}/thumb${qs}`;
+  },
 };
 
 // ---- Playlists ----

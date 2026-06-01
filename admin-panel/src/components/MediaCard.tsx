@@ -22,7 +22,8 @@ export function MediaCard({
   compact,
 }: Props) {
   const isVideo = item.type === 'VIDEO';
-  const src = media.fileUrl(item.id);
+  // Imágenes: miniatura liviana. Videos: no cargamos el archivo (solo icono + nombre).
+  const thumbSrc = media.thumbUrl(item.id);
 
   return (
     <div
@@ -40,15 +41,15 @@ export function MediaCard({
         )}
       >
         {isVideo ? (
-          <video
-            src={src}
-            className="h-full w-full object-cover"
-            preload="metadata"
-            muted
-          />
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gray-900/90 text-gray-300">
+            <Film className="h-10 w-10" />
+            <span className="px-3 text-center text-xs font-medium text-gray-400">
+              Video
+            </span>
+          </div>
         ) : (
           <img
-            src={src}
+            src={thumbSrc}
             alt={item.filename}
             loading="lazy"
             className="h-full w-full object-cover"

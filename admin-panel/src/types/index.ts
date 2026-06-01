@@ -67,6 +67,8 @@ export interface MediaItem {
   mime_type: string;
   size_bytes: number;
   duration_seconds?: number | null;
+  url?: string;
+  thumbnail_url?: string | null;
   created_at?: string;
 }
 

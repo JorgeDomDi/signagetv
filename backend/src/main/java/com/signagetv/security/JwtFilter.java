@@ -83,7 +83,7 @@ public class JwtFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         if (path != null
                 && path.startsWith("/api/v1/media/")
-                && path.endsWith("/file")
+                && (path.endsWith("/file") || path.endsWith("/thumb"))
                 && "GET".equalsIgnoreCase(request.getMethod())) {
             String q = request.getParameter("token");
             if (q != null && !q.isBlank()) return q;

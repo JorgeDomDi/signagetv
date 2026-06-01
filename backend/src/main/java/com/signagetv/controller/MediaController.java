@@ -67,4 +67,33 @@ public class MediaController {
                 .header(HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
                 .body(new FileSystemResource(path));
     }
+
+    /**
+     * Devuelve la miniatura de baja resolución de una imagen, para el panel admin.
+     * Si no se puede generar (formato no legible, etc.) degrada al archivo original.
+     * La generación es lazy: las imágenes subidas antes de esta funcionalidad se
+     * procesan la primera vez que se piden.
+     */
+    @GetMapping("/{id}/thumb")
+    public ResponseEntity<Resource> thumb(@PathVariable Long id) throws Exception {
+        Long localId = SecurityUtils.currentLocalId();
+        String thumbPath = mediaService.resolveThumbnailPath(localId, id);
+
+        // Fallback al original si no hay miniatura (p. ej. formato no soportado).
+        if (thumbPath == null) {
+            return file(id);
+        }
+
+        Path path = storageService.resolve(thumbPath);
+        if (!Files.exists(path)) {
+            return file(id);
+        }
+
+        long size = Files.size(path);
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_JPEG)
+                .contentLength(size)
+                .header(HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
+                .body(new FileSystemResource(path));
+    }
 }
