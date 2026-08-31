@@ -23,6 +23,7 @@ public class MediaService {
     private final StorageService storageService;
     private final ThumbnailService thumbnailService;
     private final UrlBuilder urlBuilder;
+    private final RealtimeNotificationService realtime;
 
     @Transactional
     public MediaItemDto upload(Long localId, MultipartFile file) {
@@ -67,6 +68,11 @@ public class MediaService {
             storageService.delete(item.getThumbnailPath());
         }
         mediaRepo.delete(item);
+
+        // Si el archivo estaba en alguna playlist, las TVs tienen que enterarse ya:
+        // el borrado en cascada lo saca de la lista y si no avisamos seguirian
+        // pidiendo una URL que ya no existe hasta el proximo poll.
+        realtime.notifyPlaylistsChanged(localId);
     }
 
     public MediaItem getOwned(Long localId, Long id) {

@@ -32,6 +32,7 @@ import com.signagetv.tv.ui.select.PlaylistSelectActivity
 import com.signagetv.tv.util.Logger
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -78,9 +79,15 @@ class PlayerActivity : AppCompatActivity() {
     /** Current playlist actively being shown. */
     private var current: PlaylistDto? = null
 
-    /** Next playlist queued (will swap when current item ends). */
-    @Volatile private var pendingPlaylist: PlaylistDto? = null
-    @Volatile private var pendingRefresh: Boolean = false
+    /**
+     * Huella del contenido que se esta reproduciendo ahora mismo. Se compara con
+     * la del servidor para saber si algo cambio DE VERDAD.
+     *
+     * No usamos `updated_at`: la columna en MySQL tiene resolucion de 1 segundo,
+     * asi que dos guardados seguidos (o un guardado en el mismo segundo en que la
+     * TV consulto) daban la misma marca y el cambio se perdia en silencio.
+     */
+    private var currentFingerprint: String? = null
 
     private var imageFrontVisible = false  // false -> imageBack is the "front"
     private var backHoldStart: Long = 0L
@@ -159,25 +166,16 @@ class PlayerActivity : AppCompatActivity() {
                 if (pl == null || pl.items.isEmpty()) {
                     showMessage(getString(R.string.player_no_content))
                     current = null
+                    currentFingerprint = null
                     return@launch
                 }
                 showLoading(false)
-                if (current == null) {
-                    current = pl
-                    syncBackgroundAudio(pl)
-                    startLoop()
+                val fp = pl.fingerprint()
+                if (current == null || fp != currentFingerprint) {
+                    Logger.i("Contenido nuevo -> aplicando al instante: '${pl.nombre}'")
+                    applyPlaylist(pl, fp)
                 } else {
-                    // Solo reprogramar (y por tanto reiniciar la lista en el proximo
-                    // limite de item) si la playlist cambio de verdad. Asi el poll de
-                    // 60s o un refresh no reinician una lista que sigue igual.
-                    val cur = current
-                    val changed = cur == null || cur.id != pl.id || cur.updatedAt != pl.updatedAt
-                    if (changed) {
-                        pendingPlaylist = pl
-                        Logger.i("Playlist changed; will swap at item boundary")
-                    } else {
-                        Logger.d("Playlist unchanged; continuing current loop")
-                    }
+                    Logger.d("Sin cambios; sigue el ciclo actual")
                 }
             } catch (t: Throwable) {
                 Logger.e("fetchAndStart failed", t)
@@ -188,36 +186,56 @@ class PlayerActivity : AppCompatActivity() {
 
     // ===== Loop =====
 
-    private fun startLoop() {
-        loopJob?.cancel()
-        loopJob = lifecycleScope.launch {
-            while (true) {
-                val playlist = current ?: return@launch
-                val items = playlist.items
-                if (items.isEmpty()) return@launch
-                for (item in items.sortedBy { it.position }) {
-                    if (consumePending()) break  // restart loop with new playlist
-                    showItem(playlist, item)
-                    // showItem suspends until item duration is up (or video ends)
-                }
-            }
+    /**
+     * Huella del contenido: todo lo que, si cambia, obliga a repintar la pantalla.
+     * Si dos respuestas del servidor dan la misma huella, no hay nada que hacer.
+     */
+    private fun PlaylistDto.fingerprint(): String = buildString {
+        append(id).append('|').append(transicion).append('|').append(defaultImageSeconds).append('|')
+        items.sortedBy { it.position }.forEach { i ->
+            append(i.media.id).append(':')
+                .append(i.durationSeconds ?: -1).append(':')
+                .append(i.repeatCount ?: 1).append(',')
+        }
+        append('#')
+        audioItems.orEmpty().sortedBy { it.position }.forEach { a ->
+            append(a.media.id).append(',')
         }
     }
 
-    private fun consumePending(): Boolean {
-        val next = pendingPlaylist
-        if (next != null) {
-            pendingPlaylist = null
-            current = next
-            syncBackgroundAudio(next)
-            Logger.i("Swapping to queued playlist '${next.nombre}'")
-            return true
+    /**
+     * Aplica una playlist AL INSTANTE.
+     *
+     * Cancelar `loopJob` corta la espera de la imagen en curso o del video que se
+     * este reproduciendo, asi que el contenido nuevo entra en el momento y no al
+     * terminar el item actual. Tambien desatasca el ciclo si se habia quedado
+     * clavado esperando un video que nunca termino.
+     *
+     * La musica NO se reinicia si las pistas son las mismas: de eso se encarga
+     * [syncBackgroundAudio], que compara la lista antes de tocar el reproductor.
+     */
+    private fun applyPlaylist(pl: PlaylistDto, fingerprint: String = pl.fingerprint()) {
+        current = pl
+        currentFingerprint = fingerprint
+        binding.errorView.visibility = View.GONE
+        syncBackgroundAudio(pl)
+        startLoop()
+    }
+
+    private fun startLoop() {
+        loopJob?.cancel()
+        loopJob = lifecycleScope.launch {
+            while (isActive) {
+                val playlist = current ?: return@launch
+                val items = playlist.items.sortedBy { it.position }
+                if (items.isEmpty()) return@launch
+                for (item in items) {
+                    if (!isActive) return@launch
+                    showItem(playlist, item)
+                    // showItem suspende hasta que se cumple la duracion (o termina el video)
+                }
+            }
         }
-        if (pendingRefresh) {
-            pendingRefresh = false
-            fetchAndStart(initial = false)
-        }
-        return false
     }
 
     private suspend fun showItem(playlist: PlaylistDto, item: PlaylistItemDto) {
@@ -286,14 +304,46 @@ class PlayerActivity : AppCompatActivity() {
         videoCompletionGate()
     }
 
-    /** Suspends until the player reaches STATE_ENDED or hits an error (both call advanceItem()). */
+    /**
+     * Espera a que el video termine (STATE_ENDED) o falle.
+     *
+     * Ademas vigila que no se quede colgado: si ExoPlayer se queda en IDLE tras un
+     * fallo silencioso, o si la posicion deja de avanzar porque el buffer se trabo,
+     * pasamos al siguiente item. Sin esto el ciclo se clavaba para siempre en un
+     * video roto y la TV dejaba de tomar los cambios de la playlist.
+     */
     private suspend fun videoCompletionGate() {
         val player = exoPlayer ?: return
-        // Poll once a second; simpler than a flow setup and fine for content of seconds/minutes.
+        var lastPosition = -1L
+        var stalledMs = 0L
+        var idleMs = 0L
+
         while (true) {
             if (player.playbackState == Player.STATE_ENDED) return
             if (advancePending) { advancePending = false; return }
-            delay(500)
+            delay(GATE_POLL_MS)
+
+            if (player.playbackState == Player.STATE_IDLE) {
+                idleMs += GATE_POLL_MS
+                if (idleMs >= IDLE_GIVE_UP_MS) {
+                    Logger.w("Video sin arrancar tras ${IDLE_GIVE_UP_MS}ms; salto al siguiente item")
+                    return
+                }
+            } else {
+                idleMs = 0L
+            }
+
+            val pos = player.currentPosition
+            if (pos == lastPosition && player.playWhenReady) {
+                stalledMs += GATE_POLL_MS
+                if (stalledMs >= STALL_GIVE_UP_MS) {
+                    Logger.w("Video trabado ${STALL_GIVE_UP_MS}ms sin avanzar; salto al siguiente item")
+                    return
+                }
+            } else {
+                stalledMs = 0L
+                lastPosition = pos
+            }
         }
     }
 
@@ -431,10 +481,7 @@ class PlayerActivity : AppCompatActivity() {
                     type == null || type == "REFRESH" || type == "PLAYLIST_CHANGED" ||
                         type == "SCHEDULE_CHANGED"
                 } catch (_: Throwable) { true }
-                if (shouldRefresh) {
-                    pendingRefresh = true
-                    fetchAndStart(initial = false)
-                }
+                if (shouldRefresh) fetchAndStart(initial = false)
             }
             override fun onDisconnected(reason: String?) {
                 Logger.w("WS disconnected: $reason")
@@ -450,8 +497,8 @@ class PlayerActivity : AppCompatActivity() {
         pollJob?.cancel()
         pollJob = lifecycleScope.launch {
             while (true) {
-                delay(60_000)
-                Logger.d("Polling /tv/playlist/current")
+                delay(POLL_INTERVAL_MS)
+                Logger.d("Poll de respaldo /tv/playlist/current")
                 fetchAndStart(initial = false)
             }
         }
@@ -512,6 +559,20 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private val hideHint = Runnable { binding.backHint.visibility = View.GONE }
+
+    companion object {
+        /** Cada cuanto se revisa el estado del video en curso. */
+        private const val GATE_POLL_MS = 500L
+        /** Si ExoPlayer sigue en IDLE tanto tiempo, damos el video por perdido. */
+        private const val IDLE_GIVE_UP_MS = 10_000L
+        /** Si la posicion no avanza tanto tiempo con el player en marcha, idem. */
+        private const val STALL_GIVE_UP_MS = 60_000L
+        /**
+         * Respaldo por si el WebSocket se cayo. El camino normal es el push, que es
+         * instantaneo; esto solo acota cuanto puede tardar una TV desconectada.
+         */
+        private const val POLL_INTERVAL_MS = 20_000L
+    }
 
     private fun returnToSelect() {
         startActivity(Intent(this, PlaylistSelectActivity::class.java))
