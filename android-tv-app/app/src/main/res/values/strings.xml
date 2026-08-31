@@ -5,13 +5,15 @@
     <!-- Login -->
     <string name="login_title">SignageTV</string>
     <string name="login_subtitle">Inicia sesión en el local</string>
-    <string name="hint_server_url">URL del servidor (ej. http://192.168.1.10:8080)</string>
+    <string name="hint_server_url">URL del servidor (ej. http://149.50.138.58)</string>
     <string name="hint_username">Usuario del local</string>
     <string name="hint_password">Contraseña</string>
     <string name="btn_login">Entrar</string>
     <string name="error_empty_fields">Completa todos los campos</string>
     <string name="error_login">No se pudo iniciar sesión: %1$s</string>
     <string name="login_in_progress">Conectando…</string>
+    <string name="login_auto">Entrando automáticamente…</string>
+    <string name="login_auto_failed">No se pudo entrar solo (%1$s). Revisa los datos y pulsa Entrar.</string>
 
     <!-- Playlist select -->
     <string name="select_title">Selecciona una playlist</string>

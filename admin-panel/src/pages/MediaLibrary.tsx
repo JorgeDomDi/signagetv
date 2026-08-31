@@ -13,7 +13,14 @@ import { apiErrorMessage } from '@/api/client';
 import { cn } from '@/lib/cn';
 import type { MediaItem } from '@/types';
 
-const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'video/quicktime'];
+const ACCEPTED = [
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+  'video/mp4', 'video/webm', 'video/quicktime',
+  'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/aac', 'audio/wav',
+  'audio/x-wav', 'audio/ogg', 'audio/flac', 'audio/x-m4a',
+];
+// Algunos navegadores no reportan MIME para .mp3/.m4a: caemos a la extensión.
+const AUDIO_EXT = /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i;
 const MAX_BYTES = 500 * 1024 * 1024; // 500 MB
 
 interface PendingUpload {
@@ -45,7 +52,13 @@ export default function MediaLibrary() {
           toast.error(`"${f.name}" supera el tamaño máximo (${formatBytes(MAX_BYTES)})`);
           continue;
         }
-        if (!ACCEPTED.includes(f.type) && !f.type.startsWith('image/') && !f.type.startsWith('video/')) {
+        const looksLikeAudio = f.type.startsWith('audio/') || AUDIO_EXT.test(f.name);
+        if (
+          !ACCEPTED.includes(f.type) &&
+          !f.type.startsWith('image/') &&
+          !f.type.startsWith('video/') &&
+          !looksLikeAudio
+        ) {
           toast.error(`"${f.name}" tiene un tipo no soportado`);
           continue;
         }
@@ -130,7 +143,7 @@ export default function MediaLibrary() {
             Biblioteca de medios
           </h2>
           <p className="text-sm text-gray-500">
-            Sube imágenes y videos para usar en tus playlists.
+            Sube imágenes, videos y música de fondo para usar en tus playlists.
           </p>
         </div>
         <button
@@ -144,7 +157,7 @@ export default function MediaLibrary() {
           ref={inputRef}
           type="file"
           multiple
-          accept="image/*,video/*"
+          accept="image/*,video/*,audio/*"
           className="hidden"
           onChange={(e) => {
             if (e.target.files) void handleFiles(e.target.files);
@@ -174,8 +187,8 @@ export default function MediaLibrary() {
           Arrastra y suelta archivos aquí, o haz clic para seleccionarlos
         </p>
         <p className="text-xs text-gray-400">
-          Imágenes (JPG, PNG, WEBP, GIF) o videos (MP4, WEBM, MOV) · máx{' '}
-          {formatBytes(MAX_BYTES)}
+          Imágenes (JPG, PNG, WEBP, GIF), videos (MP4, WEBM, MOV) o audio (MP3, M4A,
+          WAV, OGG, FLAC) · máx {formatBytes(MAX_BYTES)}
         </p>
       </div>
 

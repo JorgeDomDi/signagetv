@@ -10,6 +10,7 @@ import type {
   MediaItem,
   Playlist,
   PlaylistCreateInput,
+  PlaylistAudioItem,
   PlaylistItem,
   Schedule,
   ScheduleInput,
@@ -84,6 +85,19 @@ export const playlists = {
           position: it.position,
           duration_seconds: it.duration_seconds ?? null,
           repeat_count: it.repeat_count ?? 1,
+        })),
+      })
+      .then((r) => r.data),
+  /**
+   * Reemplaza la lista de pistas de música de fondo. Endpoint separado de
+   * setItems: el audio no forma parte de la rotación visual.
+   */
+  setAudioItems: (id: number, items: PlaylistAudioItem[]) =>
+    client
+      .put<Playlist>(`/playlists/${id}/audio-items`, {
+        items: items.map((it, idx) => ({
+          media_item_id: it.media?.id ?? it.media_item_id,
+          position: idx,
         })),
       })
       .then((r) => r.data),

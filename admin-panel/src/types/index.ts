@@ -56,7 +56,7 @@ export interface AdminUserCreateInput {
   password: string;
 }
 
-export type MediaType = 'IMAGE' | 'VIDEO';
+export type MediaType = 'IMAGE' | 'VIDEO' | 'AUDIO';
 
 export interface MediaItem {
   id: number;
@@ -84,6 +84,14 @@ export interface PlaylistItem {
   media?: MediaItem;
 }
 
+export interface PlaylistAudioItem {
+  id?: number;
+  media_item_id?: number;
+  position: number;
+  // El backend siempre manda el media expandido
+  media?: MediaItem;
+}
+
 export interface Playlist {
   id: number;
   local_id: number;
@@ -92,6 +100,8 @@ export interface Playlist {
   default_image_seconds: number;
   updated_at?: string;
   items?: PlaylistItem[];
+  /** Pistas de música de fondo, en orden. Suenan en loop, aparte del ciclo visual. */
+  audio_items?: PlaylistAudioItem[];
 }
 
 export interface PlaylistCreateInput {

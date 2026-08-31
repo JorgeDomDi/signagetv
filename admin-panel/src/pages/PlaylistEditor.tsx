@@ -13,21 +13,23 @@ import {
   GripVertical,
   Image as ImageIcon,
   Loader2,
+  Music2,
   Plus,
   Save,
   Search,
   Settings2,
   Trash2,
+  VolumeX,
 } from 'lucide-react';
 import {
   media as mediaApi,
   playlists as playlistsApi,
 } from '@/api/endpoints';
-import type { MediaItem, Playlist, PlaylistItem, TransitionType } from '@/types';
+import type { MediaItem, PlaylistAudioItem, PlaylistItem, TransitionType } from '@/types';
 import { useFetch } from '@/hooks/useFetch';
 import { usePlaylistChannel } from '@/hooks/useWebSocket';
 import { Skeleton } from '@/components/Skeleton';
-import { formatDuration } from '@/lib/format';
+import { formatBytes, formatDuration } from '@/lib/format';
 import { apiErrorMessage } from '@/api/client';
 import { cn } from '@/lib/cn';
 
@@ -37,6 +39,12 @@ interface EditorItem {
   media: MediaItem;
   duration_seconds: number | null;
   repeat_count: number; // veces que se reproduce (solo videos); 1 = una vez
+}
+
+/** Una pista de música de fondo dentro del editor. */
+interface EditorAudioTrack {
+  uid: string;
+  media: MediaItem;
 }
 
 const TRANSITIONS: TransitionType[] = ['FADE', 'SLIDE', 'ZOOM', 'NONE'];
@@ -54,6 +62,7 @@ export default function PlaylistEditor() {
   const mediaQ = useFetch(() => mediaApi.list(), []);
 
   const [items, setItems] = useState<EditorItem[]>([]);
+  const [audioTracks, setAudioTracks] = useState<EditorAudioTrack[]>([]);
   const [search, setSearch] = useState('');
   const [name, setName] = useState('');
   const [transition, setTransition] = useState<TransitionType>('FADE');
@@ -95,7 +104,17 @@ export default function PlaylistEditor() {
       })
       .filter((x): x is EditorItem => x !== null);
 
+    const remoteAudio: EditorAudioTrack[] = (playlistQ.data.audio_items ?? [])
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map((t) => {
+        const m = t.media ?? (t.media_item_id ? mediaById.get(t.media_item_id) : undefined);
+        return m ? ({ uid: buildUid('au'), media: m } satisfies EditorAudioTrack) : null;
+      })
+      .filter((x): x is EditorAudioTrack => x !== null);
+
     setItems(remoteItems);
+    setAudioTracks(remoteAudio);
     setDirty(false);
   }, [playlistQ.data, mediaQ.data]);
 
@@ -111,12 +130,34 @@ export default function PlaylistEditor() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
 
+  // El audio nunca aparece en la biblioteca visual: va en su propia sección.
   const filteredLibrary = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (mediaQ.data ?? []).filter(
-      (m) => !q || m.filename.toLowerCase().includes(q),
+      (m) => m.type !== 'AUDIO' && (!q || m.filename.toLowerCase().includes(q)),
     );
   }, [mediaQ.data, search]);
+
+  const audioLibrary = useMemo(
+    () => (mediaQ.data ?? []).filter((m) => m.type === 'AUDIO'),
+    [mediaQ.data],
+  );
+
+  /** Pistas de la biblioteca que todavía no están en esta playlist. */
+  const availableAudio = useMemo(() => {
+    const used = new Set(audioTracks.map((t) => t.media.id));
+    return audioLibrary.filter((m) => !used.has(m.id));
+  }, [audioLibrary, audioTracks]);
+
+  function addAudioTrack(m: MediaItem) {
+    setAudioTracks((prev) => [...prev, { uid: buildUid('au'), media: m }]);
+    setDirty(true);
+  }
+
+  function removeAudioAt(index: number) {
+    setAudioTracks((prev) => prev.filter((_, i) => i !== index));
+    setDirty(true);
+  }
 
   function addFromLibrary(m: MediaItem) {
     setItems((prev) => [
@@ -149,6 +190,23 @@ export default function PlaylistEditor() {
   function onDragEnd(result: DropResult) {
     const { source, destination } = result;
     if (!destination) return;
+
+    // Reordenamiento de las pistas de música de fondo
+    if (source.droppableId === 'audio' && destination.droppableId === 'audio') {
+      if (source.index === destination.index) return;
+      setAudioTracks((prev) => {
+        const next = prev.slice();
+        const [moved] = next.splice(source.index, 1);
+        next.splice(destination.index, 0, moved);
+        return next;
+      });
+      setDirty(true);
+      return;
+    }
+
+    // No se mezclan las dos listas: el audio no entra en la rotación visual
+    // y las imágenes/videos no entran en la música.
+    if (source.droppableId === 'audio' || destination.droppableId === 'audio') return;
 
     // Reordenamiento dentro de la playlist
     if (source.droppableId === 'playlist' && destination.droppableId === 'playlist') {
@@ -209,6 +267,21 @@ export default function PlaylistEditor() {
         repeat_count: it.media.type === 'VIDEO' ? it.repeat_count ?? 1 : 1,
       }));
       await playlistsApi.setItems(playlistId, payload);
+
+      // 3) reemplazar pistas de música de fondo (sólo si cambiaron)
+      const remoteAudioIds = (playlistQ.data.audio_items ?? [])
+        .slice()
+        .sort((a, b) => a.position - b.position)
+        .map((t) => t.media?.id ?? t.media_item_id)
+        .join(',');
+      const localAudioIds = audioTracks.map((t) => t.media.id).join(',');
+      if (remoteAudioIds !== localAudioIds) {
+        const audioPayload: PlaylistAudioItem[] = audioTracks.map((t, idx) => ({
+          media_item_id: t.media.id,
+          position: idx,
+        }));
+        await playlistsApi.setAudioItems(playlistId, audioPayload);
+      }
 
       toast.success('Cambios guardados');
       setDirty(false);
@@ -537,6 +610,147 @@ export default function PlaylistEditor() {
             </Droppable>
           </section>
         </div>
+
+        {/* Música de fondo */}
+        <section className="card overflow-hidden">
+          <header className="flex flex-col gap-1 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-indigo-50 text-indigo-600">
+                <Music2 className="h-4 w-4" />
+              </span>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Música de fondo</h3>
+                <p className="text-xs text-gray-500">
+                  Suena en loop mientras rotan las imágenes y videos. Al terminar la
+                  última pista vuelve a empezar por la primera.
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/media"
+              className="shrink-0 text-xs font-medium text-brand-600 hover:text-brand-700"
+            >
+              Subir música
+            </Link>
+          </header>
+
+          <div className="space-y-3 p-4">
+            {audioLibrary.length === 0 ? (
+              <div className="rounded-lg border-2 border-dashed border-gray-200 px-6 py-8 text-center">
+                <Music2 className="mx-auto mb-2 h-5 w-5 text-gray-400" />
+                <p className="text-sm font-medium text-gray-700">
+                  No hay archivos de audio en la biblioteca
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Subí tus compilados (MP3, M4A, WAV...) en la{' '}
+                  <Link to="/media" className="font-medium text-brand-600 hover:underline">
+                    Biblioteca
+                  </Link>{' '}
+                  y después agregalos acá.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-gray-500">Agregar pista:</span>
+                  {availableAudio.length === 0 ? (
+                    <span className="text-xs text-gray-400">
+                      Ya agregaste todas las pistas de la biblioteca
+                    </span>
+                  ) : (
+                    availableAudio.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => addAudioTrack(m)}
+                        className="inline-flex max-w-[260px] items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-700 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+                        title={`Agregar "${m.filename}"`}
+                      >
+                        <Plus className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{m.filename}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                <Droppable droppableId="audio">
+                  {(provided, snapshot) => (
+                    <ul
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={cn(
+                        'space-y-2 rounded-lg transition-colors',
+                        snapshot.isDraggingOver && 'bg-indigo-50/40',
+                      )}
+                    >
+                      {audioTracks.length === 0 && (
+                        <li className="rounded-lg border-2 border-dashed border-gray-200 px-6 py-8 text-center text-sm text-gray-500">
+                          Sin música. La playlist se reproduce con el audio propio de
+                          los videos.
+                        </li>
+                      )}
+                      {audioTracks.map((t, idx) => (
+                        <Draggable key={t.uid} draggableId={t.uid} index={idx}>
+                          {(prov, snap) => (
+                            <li
+                              ref={prov.innerRef}
+                              {...prov.draggableProps}
+                              className={cn(
+                                'flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-2.5 shadow-card transition-shadow',
+                                snap.isDragging && 'shadow-cardHover ring-2 ring-indigo-500',
+                              )}
+                            >
+                              <span
+                                {...prov.dragHandleProps}
+                                className="cursor-grab text-gray-400 hover:text-gray-600 active:cursor-grabbing"
+                              >
+                                <GripVertical className="h-4 w-4" />
+                              </span>
+                              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-indigo-50 text-xs font-semibold text-indigo-600">
+                                {idx + 1}
+                              </span>
+                              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-indigo-950/90 text-indigo-200">
+                                <Music2 className="h-4 w-4" />
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-sm font-medium text-gray-900">
+                                  {t.media.filename}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {formatBytes(t.media.size_bytes)}
+                                  {t.media.duration_seconds != null && (
+                                    <> · {formatDuration(t.media.duration_seconds)}</>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeAudioAt(idx)}
+                                className="grid h-8 w-8 place-items-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-600"
+                                title="Quitar pista"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </li>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </ul>
+                  )}
+                </Droppable>
+
+                {audioTracks.length > 0 && (
+                  <p className="flex items-start gap-1.5 text-xs text-gray-500">
+                    <VolumeX className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
+                    La música tiene prioridad: mientras haya pistas, los videos de esta
+                    playlist se reproducen sin sonido.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </section>
       </DragDropContext>
     </div>
   );

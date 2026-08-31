@@ -155,7 +155,13 @@ class PlaylistSelectActivity : AppCompatActivity() {
                 is PlaylistEntry.Manual -> {
                     name.text = entry.playlist.nombre
                     val n = entry.playlist.items.size
-                    sub.text = "$n items · transición ${entry.playlist.transicion}"
+                    val music = entry.playlist.audioItems.orEmpty().size
+                    val musicPart = when (music) {
+                        0 -> ""
+                        1 -> " · 1 pista de música"
+                        else -> " · $music pistas de música"
+                    }
+                    sub.text = "$n items · transición ${entry.playlist.transicion}$musicPart"
                     holder.itemView.isSelected = selectedId == entry.playlist.id
                 }
             }

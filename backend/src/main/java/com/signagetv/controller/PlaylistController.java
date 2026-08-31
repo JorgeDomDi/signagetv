@@ -1,5 +1,6 @@
 package com.signagetv.controller;
 
+import com.signagetv.dto.PlaylistAudioItemsReplaceRequest;
 import com.signagetv.dto.PlaylistCreateRequest;
 import com.signagetv.dto.PlaylistDto;
 import com.signagetv.dto.PlaylistItemsReplaceRequest;
@@ -48,5 +49,16 @@ public class PlaylistController {
     @PutMapping("/{id}/items")
     public PlaylistDto replaceItems(@PathVariable Long id, @RequestBody PlaylistItemsReplaceRequest req) {
         return playlistService.replaceItems(SecurityUtils.currentLocalId(), id, req);
+    }
+
+    /**
+     * Reemplaza la lista de pistas de musica de fondo de la playlist.
+     * Endpoint separado de /items a proposito: el audio no forma parte de la
+     * rotacion visual y se guarda de forma independiente.
+     */
+    @PutMapping("/{id}/audio-items")
+    public PlaylistDto replaceAudioItems(@PathVariable Long id,
+                                         @RequestBody PlaylistAudioItemsReplaceRequest req) {
+        return playlistService.replaceAudioItems(SecurityUtils.currentLocalId(), id, req);
     }
 }

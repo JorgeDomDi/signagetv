@@ -117,6 +117,7 @@ public class MediaService {
         if (mime != null) {
             if (mime.startsWith("image/")) return MediaType.IMAGE;
             if (mime.startsWith("video/")) return MediaType.VIDEO;
+            if (mime.startsWith("audio/")) return MediaType.AUDIO;
         }
         if (filename != null) {
             String f = filename.toLowerCase();
@@ -124,6 +125,9 @@ public class MediaService {
                 f.endsWith(".gif") || f.endsWith(".webp")) return MediaType.IMAGE;
             if (f.endsWith(".mp4") || f.endsWith(".mov") || f.endsWith(".mkv") ||
                 f.endsWith(".webm") || f.endsWith(".avi")) return MediaType.VIDEO;
+            if (f.endsWith(".mp3") || f.endsWith(".m4a") || f.endsWith(".aac") ||
+                f.endsWith(".wav") || f.endsWith(".ogg") || f.endsWith(".oga") ||
+                f.endsWith(".opus") || f.endsWith(".flac")) return MediaType.AUDIO;
         }
         throw new BadRequestException("Tipo de archivo no soportado: " + mime);
     }

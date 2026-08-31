@@ -54,6 +54,15 @@ class SignagePrefs(context: Context) {
         get() = prefs.getLong(KEY_SELECTED_PLAYLIST, -2L)
         set(value) { prefs.edit().putLong(KEY_SELECTED_PLAYLIST, value).apply() }
 
+    /**
+     * true una vez que la app intento el arranque automatico de fabrica.
+     * A proposito NO se borra en [clearAuth]: si alguien cierra sesion a mano
+     * queremos que se quede en la pantalla de login, no que vuelva a entrar sola.
+     */
+    var autoLoginDone: Boolean
+        get() = prefs.getBoolean(KEY_AUTO_LOGIN_DONE, false)
+        set(value) { prefs.edit().putBoolean(KEY_AUTO_LOGIN_DONE, value).apply() }
+
     fun isAutoMode(): Boolean = selectedPlaylistId == -1L
     fun hasPlaylistChoice(): Boolean = selectedPlaylistId != -2L
 
@@ -74,5 +83,6 @@ class SignagePrefs(context: Context) {
         private const val KEY_LOCAL_NAME = "local_name"
         private const val KEY_TV_ID = "tv_id"
         private const val KEY_SELECTED_PLAYLIST = "selected_playlist"
+        private const val KEY_AUTO_LOGIN_DONE = "auto_login_done"
     }
 }

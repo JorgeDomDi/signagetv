@@ -42,6 +42,9 @@ import java.io.File
  *  - Videos: ExoPlayer, advance on completion.
  *  - WebSocket subscription to /topic/local/{localId}/playlists to refresh on changes.
  *  - 60 s polling fallback.
+ *  - Background music: a SECOND, independent ExoPlayer loops the playlist's audio
+ *    tracks (REPEAT_MODE_ALL) while images/videos rotate on their own. When the
+ *    playlist has music, videos are played muted so the music always has priority.
  *  - Long-press BACK (3 s) returns to the playlist selector.
  */
 class PlayerActivity : AppCompatActivity() {
@@ -54,6 +57,23 @@ class PlayerActivity : AppCompatActivity() {
     private var stomp: StompClient? = null
     private var pollJob: Job? = null
     private var loopJob: Job? = null
+
+    /** Reproductor dedicado a la musica de fondo. Corre en paralelo al visual. */
+    private var audioPlayer: ExoPlayer? = null
+    private var audioJob: Job? = null
+
+    /**
+     * Firma de la lista de pistas que esta sonando ahora mismo (ids en orden).
+     * Sirve para NO reiniciar la musica cuando la playlist se recarga pero la
+     * lista de pistas es la misma.
+     */
+    private var currentAudioKey: String? = null
+
+    /** Se incrementa en cada cambio de musica; un job viejo que despierte se descarta. */
+    private var audioGeneration = 0
+
+    /** true si la playlist activa tiene musica -> los videos se reproducen muteados. */
+    @Volatile private var musicHasPriority = false
 
     /** Current playlist actively being shown. */
     private var current: PlaylistDto? = null
@@ -81,6 +101,19 @@ class PlayerActivity : AppCompatActivity() {
                 override fun onPlayerError(error: PlaybackException) {
                     Logger.e("ExoPlayer error", error)
                     advanceItem()
+                }
+            })
+        }
+
+        audioPlayer = ExoPlayer.Builder(this).build().also { a ->
+            a.repeatMode = Player.REPEAT_MODE_ALL
+            a.addListener(object : Player.Listener {
+                override fun onPlayerError(error: PlaybackException) {
+                    // Una pista rota no debe cortar la musica: saltamos a la siguiente.
+                    Logger.e("Audio player error, skipping track", error)
+                    a.seekToNextMediaItem()
+                    a.prepare()
+                    a.playWhenReady = true
                 }
             })
         }
@@ -131,6 +164,7 @@ class PlayerActivity : AppCompatActivity() {
                 showLoading(false)
                 if (current == null) {
                     current = pl
+                    syncBackgroundAudio(pl)
                     startLoop()
                 } else {
                     // Solo reprogramar (y por tanto reiniciar la lista en el proximo
@@ -175,6 +209,7 @@ class PlayerActivity : AppCompatActivity() {
         if (next != null) {
             pendingPlaylist = null
             current = next
+            syncBackgroundAudio(next)
             Logger.i("Swapping to queued playlist '${next.nombre}'")
             return true
         }
@@ -241,6 +276,8 @@ class PlayerActivity : AppCompatActivity() {
         val repeat = (item.repeatCount ?: 1).coerceIn(1, 100)
         val mediaItems = (1..repeat).map { MediaItem.fromUri(uri) }
         advancePending = false
+        // La musica de fondo manda: si la playlist tiene pistas, el video va mudo.
+        player.volume = if (musicHasPriority) 0f else 1f
         player.setMediaItems(mediaItems)
         player.prepare()
         player.playWhenReady = true
@@ -308,6 +345,64 @@ class PlayerActivity : AppCompatActivity() {
     } catch (t: Throwable) {
         Logger.w("Cache miss for $url, streaming instead: ${t.message}")
         null
+    }
+
+    // ===== Musica de fondo =====
+
+    /**
+     * Pone en marcha (o deja como esta) la musica de fondo de [playlist].
+     *
+     * Si la lista de pistas es identica a la que ya esta sonando no se toca nada,
+     * asi el poll de 60 s, un REFRESH del WebSocket o un cambio que solo afecta a
+     * las imagenes no cortan la musica a la mitad.
+     *
+     * Las pistas se descargan a cache una por una: la primera arranca en cuanto
+     * esta lista y el resto se van encolando a medida que bajan, para no quedarse
+     * varios minutos en silencio esperando un compilado pesado.
+     */
+    private fun syncBackgroundAudio(playlist: PlaylistDto) {
+        val tracks = playlist.audioItems.orEmpty().sortedBy { it.position }
+        val key = tracks.joinToString(",") { it.media.id.toString() }
+
+        if (key == currentAudioKey) {
+            Logger.d("Background audio unchanged; keeping it playing")
+            return
+        }
+        currentAudioKey = key
+        musicHasPriority = tracks.isNotEmpty()
+
+        audioJob?.cancel()
+        val generation = ++audioGeneration
+        val player = audioPlayer ?: return
+        player.stop()
+        player.clearMediaItems()
+
+        if (tracks.isEmpty()) {
+            Logger.i("Playlist '${playlist.nombre}' has no background music")
+            return
+        }
+
+        Logger.i("Background music: ${tracks.size} track(s) on repeat")
+        audioJob = lifecycleScope.launch {
+            var started = false
+            for (track in tracks) {
+                val cached = ensureCached(track.media.url) ?: continue
+                if (generation != audioGeneration) return@launch  // la musica ya cambio
+                val mediaItem = MediaItem.fromUri(cached.toURI().toString())
+                player.addMediaItem(mediaItem)
+                if (!started) {
+                    started = true
+                    player.repeatMode = Player.REPEAT_MODE_ALL
+                    player.volume = 1f
+                    player.prepare()
+                    player.playWhenReady = true
+                }
+            }
+            if (!started && generation == audioGeneration) {
+                Logger.w("No background track could be cached; playing without music")
+                musicHasPriority = false
+            }
+        }
     }
 
     // ===== WebSocket =====
@@ -427,8 +522,11 @@ class PlayerActivity : AppCompatActivity() {
         super.onDestroy()
         loopJob?.cancel()
         pollJob?.cancel()
+        audioJob?.cancel()
         stomp?.stop()
         exoPlayer?.release()
         exoPlayer = null
+        audioPlayer?.release()
+        audioPlayer = null
     }
 }

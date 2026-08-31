@@ -47,7 +47,19 @@ data class PlaylistDto(
     val transicion: String = "FADE",
     @SerializedName("default_image_seconds") val defaultImageSeconds: Int = 8,
     @SerializedName("updated_at") val updatedAt: String? = null,
-    val items: List<PlaylistItemDto> = emptyList()
+    val items: List<PlaylistItemDto> = emptyList(),
+    /**
+     * Pistas de musica de fondo, en orden. Se reproducen en un reproductor
+     * aparte, en loop infinito, independientemente de la rotacion visual.
+     * Nullable a proposito: Gson puede escribir null si el backend es viejo.
+     */
+    @SerializedName("audio_items") val audioItems: List<PlaylistAudioItemDto>? = null
+)
+
+data class PlaylistAudioItemDto(
+    val id: Long,
+    val position: Int,
+    val media: MediaItemDto
 )
 
 data class PlaylistItemDto(
@@ -63,7 +75,7 @@ data class MediaItemDto(
     val filename: String,
     /** Absolute URL served by backend (resolved server-side). */
     val url: String,
-    /** "IMAGE" or "VIDEO" */
+    /** "IMAGE", "VIDEO" or "AUDIO" */
     val type: String,
     @SerializedName("mime_type") val mimeType: String? = null,
     @SerializedName("duration_seconds") val durationSeconds: Int? = null

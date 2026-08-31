@@ -11,8 +11,21 @@ android {
         applicationId = "com.signagetv.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
+
+        // ------------------------------------------------------------------
+        //  Configuracion de fabrica de la app.
+        //  Se compila dentro del APK para que una TV recien instalada arranque
+        //  sola, sin que nadie tenga que escribir nada con el control remoto.
+        //  Si cambias la cuenta o el servidor, tocalo aca y recompila el APK.
+        // ------------------------------------------------------------------
+        buildConfigField("String", "DEFAULT_SERVER_URL", "\"http://149.50.138.58\"")
+        buildConfigField("String", "DEFAULT_USERNAME", "\"Ninos\"")
+        buildConfigField("String", "DEFAULT_PASSWORD", "\"Jorge123\"")
+        // true = al instalar, entra sola y empieza a reproducir en modo
+        // "Automatico segun horario" (todo se maneja desde el panel web).
+        buildConfigField("boolean", "AUTO_START", "true")
     }
 
     buildTypes {

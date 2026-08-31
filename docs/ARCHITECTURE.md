@@ -22,8 +22,12 @@ Todo se despliega en el **VPS** del usuario vía Docker Compose. Los archivos mu
 
 - **Local**: una ubicación física (ej. "Sucursal Centro"). Tiene un usuario y contraseña.
 - **TV**: una pantalla Android TV asociada a un local. Un local puede tener N TVs.
-- **MediaItem**: un archivo individual (imagen o video) subido por el local.
-- **Playlist**: una lista ordenada de MediaItems con duraciones y transiciones (ej. "Menú Desayuno").
+- **MediaItem**: un archivo individual (imagen, video o audio) subido por el local.
+- **Playlist**: una lista ordenada de MediaItems con duraciones y transiciones (ej. "Menú Desayuno"),
+  más — opcionalmente — una lista de **pistas de audio** que suenan como música de fondo.
+- **Música de fondo**: las pistas de audio de una playlist se reproducen en un canal propio,
+  en orden y en loop infinito (al terminar la última vuelve a la primera), con independencia
+  del ciclo de imágenes y videos. Mientras haya música, los videos se reproducen muteados.
 - **Schedule**: una regla horaria que asocia una playlist a unos días y un rango horario (ej. "Lunes a Viernes 07:00–11:00").
 - **Assignment**: a una TV se le asigna una playlist (manual desde la propia TV en su pantalla de login + selector). Los Schedules permiten que automáticamente cambie según horario si están activos.
 
@@ -53,7 +57,7 @@ media_items (
   local_id BIGINT FK -> locales.id,
   filename VARCHAR(255),               -- nombre original
   storage_path VARCHAR(500),           -- ruta en disco del VPS
-  type ENUM('IMAGE','VIDEO'),
+  type ENUM('IMAGE','VIDEO','AUDIO'),
   mime_type VARCHAR(80),
   size_bytes BIGINT,
   duration_seconds INT NULL,           -- solo videos
@@ -69,12 +73,20 @@ playlists (
   updated_at TIMESTAMP
 )
 
-playlist_items (
+playlist_items (                       -- rotación VISUAL (imágenes y videos)
   id BIGINT PK,
   playlist_id BIGINT FK -> playlists.id,
   media_item_id BIGINT FK -> media_items.id,
   position INT,
-  duration_seconds INT NULL            -- override del default
+  duration_seconds INT NULL,           -- override del default (imágenes)
+  repeat_count INT DEFAULT 1           -- repeticiones seguidas (videos)
+)
+
+playlist_audio_items (                 -- MÚSICA DE FONDO, en tabla aparte:
+  id BIGINT PK,                        -- no forma parte de la rotación visual
+  playlist_id BIGINT FK -> playlists.id,
+  media_item_id BIGINT FK -> media_items.id,  -- debe ser type=AUDIO
+  position INT                         -- orden de reproducción; loop al terminar
 )
 
 schedules (
@@ -109,7 +121,10 @@ Base path: `/api/v1`
 - `POST   /playlists` — `{nombre, transicion, default_image_seconds}`
 - `PUT    /playlists/{id}` — actualizar configuración general
 - `DELETE /playlists/{id}`
-- `PUT    /playlists/{id}/items` — reemplazar items: `[{media_item_id, position, duration_seconds}]`
+- `PUT    /playlists/{id}/items` — reemplazar items visuales: `[{media_item_id, position, duration_seconds, repeat_count}]`
+  (rechaza media de tipo AUDIO: la música va en su propio endpoint)
+- `PUT    /playlists/{id}/audio-items` — reemplazar la música de fondo: `[{media_item_id, position}]`
+  (rechaza media que no sea AUDIO; lista vacía = playlist sin música)
 
 ### Schedules
 - `GET    /schedules` — lista
@@ -128,6 +143,11 @@ Base path: `/api/v1`
   1. ¿Hay un Schedule activo ahora? → devuelve esa playlist.
   2. Si no → devuelve la `current_playlist_id` seleccionada manualmente.
   3. Si tampoco → devuelve null/empty.
+
+  La respuesta incluye `items` (rotación visual) y `audio_items` (música de fondo).
+  La app usa dos reproductores independientes: uno recorre `items` y otro repite
+  `audio_items` en bucle. La app sólo reinicia la música si la lista de pistas
+  cambió de verdad, para que un refresh o el poll de 60 s no la corten a la mitad.
 
 ## 5. WebSocket (push en tiempo real)
 

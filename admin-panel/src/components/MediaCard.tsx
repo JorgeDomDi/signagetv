@@ -1,4 +1,4 @@
-import { Trash2, Film, Image as ImageIcon } from 'lucide-react';
+import { Trash2, Film, Image as ImageIcon, Music2 } from 'lucide-react';
 import type { MediaItem } from '@/types';
 import { media } from '@/api/endpoints';
 import { formatBytes, formatDuration } from '@/lib/format';
@@ -22,7 +22,8 @@ export function MediaCard({
   compact,
 }: Props) {
   const isVideo = item.type === 'VIDEO';
-  // Imágenes: miniatura liviana. Videos: no cargamos el archivo (solo icono + nombre).
+  const isAudio = item.type === 'AUDIO';
+  // Imágenes: miniatura liviana. Videos/audio: no cargamos el archivo (solo icono + nombre).
   const thumbSrc = media.thumbUrl(item.id);
 
   return (
@@ -40,7 +41,14 @@ export function MediaCard({
           compact ? 'aspect-[16/10]' : 'aspect-video',
         )}
       >
-        {isVideo ? (
+        {isAudio ? (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-indigo-950/90 text-indigo-200">
+            <Music2 className="h-10 w-10" />
+            <span className="px-3 text-center text-xs font-medium text-indigo-300">
+              Música
+            </span>
+          </div>
+        ) : isVideo ? (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gray-900/90 text-gray-300">
             <Film className="h-10 w-10" />
             <span className="px-3 text-center text-xs font-medium text-gray-400">
@@ -56,7 +64,11 @@ export function MediaCard({
           />
         )}
         <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white backdrop-blur">
-          {isVideo ? (
+          {isAudio ? (
+            <>
+              <Music2 className="h-3 w-3" /> Audio
+            </>
+          ) : isVideo ? (
             <>
               <Film className="h-3 w-3" /> Video
             </>
@@ -86,10 +98,10 @@ export function MediaCard({
         </div>
         <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
           <span>{formatBytes(item.size_bytes)}</span>
-          {isVideo && (
+          {(isVideo || isAudio) && item.duration_seconds != null && (
             <>
               <span>·</span>
-              <span>{formatDuration(item.duration_seconds ?? undefined)}</span>
+              <span>{formatDuration(item.duration_seconds)}</span>
             </>
           )}
         </div>

@@ -19,4 +19,6 @@ public class PlaylistDto {
     private Integer defaultImageSeconds;
     private LocalDateTime updatedAt;
     private List<PlaylistItemDto> items;
+    /** Pistas de musica de fondo, en orden. Vacia si la playlist no tiene musica. */
+    private List<PlaylistAudioItemDto> audioItems;
 }

@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 public class MediaItemDto {
     private Long id;
     private String filename;
-    private String type;            // IMAGE | VIDEO
+    private String type;            // IMAGE | VIDEO | AUDIO
     private String mimeType;
     private Long sizeBytes;
     private Integer durationSeconds;
