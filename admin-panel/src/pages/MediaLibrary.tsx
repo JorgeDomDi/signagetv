@@ -23,6 +23,35 @@ const ACCEPTED = [
 const AUDIO_EXT = /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i;
 const MAX_BYTES = 500 * 1024 * 1024; // 500 MB
 
+/**
+ * Lee la duración del archivo en el propio navegador, antes de subirlo. Se manda
+ * junto con el upload para que el servidor no tenga que decodificar nada, y así
+ * la biblioteca y el editor de playlists pueden mostrarla desde el primer momento.
+ */
+function readLocalDuration(file: File): Promise<number | null> {
+  const isMedia =
+    file.type.startsWith('audio/') || file.type.startsWith('video/') || AUDIO_EXT.test(file.name);
+  if (!isMedia) return Promise.resolve(null);
+
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const el = document.createElement(file.type.startsWith('video/') ? 'video' : 'audio');
+    let settled = false;
+    const finish = (value: number | null) => {
+      if (settled) return;
+      settled = true;
+      URL.revokeObjectURL(url);
+      resolve(value);
+    };
+    el.preload = 'metadata';
+    el.onloadedmetadata = () =>
+      finish(isFinite(el.duration) && el.duration > 0 ? el.duration : null);
+    el.onerror = () => finish(null);
+    el.src = url;
+    window.setTimeout(() => finish(null), 10000);
+  });
+}
+
 interface PendingUpload {
   id: string;
   file: File;
@@ -79,11 +108,16 @@ export default function MediaLibrary() {
           prev.map((p) => (p.id === up.id ? { ...p, status: 'uploading' } : p)),
         );
         try {
-          const created = await mediaApi.upload(up.file, (pct) => {
-            setUploads((prev) =>
-              prev.map((p) => (p.id === up.id ? { ...p, progress: pct } : p)),
-            );
-          });
+          const localDuration = await readLocalDuration(up.file);
+          const created = await mediaApi.upload(
+            up.file,
+            (pct) => {
+              setUploads((prev) =>
+                prev.map((p) => (p.id === up.id ? { ...p, progress: pct } : p)),
+              );
+            },
+            localDuration,
+          );
           setUploads((prev) =>
             prev.map((p) =>
               p.id === up.id ? { ...p, status: 'done', progress: 100 } : p,

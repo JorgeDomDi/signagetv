@@ -29,9 +29,18 @@ export const auth = {
 // ---- Media ----
 export const media = {
   list: () => client.get<MediaItem[]>('/media').then((r) => r.data),
-  upload: (file: File, onProgress?: (pct: number) => void) => {
+  upload: (
+    file: File,
+    onProgress?: (pct: number) => void,
+    durationSeconds?: number | null,
+  ) => {
     const fd = new FormData();
     fd.append('file', file);
+    // El navegador ya sabe cuánto dura el archivo: se lo mandamos al servidor
+    // para no tener que decodificar audio ni video del lado del backend.
+    if (durationSeconds != null && durationSeconds > 0) {
+      fd.append('duration_seconds', String(Math.round(durationSeconds)));
+    }
     return client
       .post<MediaItem>('/media/upload', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -46,6 +55,11 @@ export const media = {
       .then((r) => r.data);
   },
   remove: (id: number) => client.delete<void>(`/media/${id}`).then((r) => r.data),
+  /** Rellena la duración de un archivo subido antes de que guardáramos este dato. */
+  setDuration: (id: number, seconds: number) =>
+    client
+      .put<MediaItem>(`/media/${id}/duration`, { seconds: Math.round(seconds) })
+      .then((r) => r.data),
   /**
    * URL para usar en <img src> / <video src>. Los tags HTML no pueden enviar
    * headers, así que añadimos el JWT como query param (?token=...). El backend

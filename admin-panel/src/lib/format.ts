@@ -36,10 +36,43 @@ export function formatBytes(bytes: number | undefined): string {
 
 export function formatDuration(seconds: number | undefined | null): string {
   if (seconds == null) return '—';
-  if (seconds < 60) return `${seconds}s`;
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return s === 0 ? `${m}m` : `${m}m ${s}s`;
+  const total = Math.round(seconds);
+  if (total < 60) return `${total}s`;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return m === 0 ? `${h} h` : `${h} h ${m} min`;
+  return s === 0 ? `${m} min` : `${m} min ${s}s`;
+}
+
+/** Formato de reproductor: 3:42 o 1:04:11. */
+export function formatClock(seconds: number | undefined | null): string {
+  if (seconds == null || !isFinite(seconds)) return '--:--';
+  const total = Math.max(0, Math.round(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
+/**
+ * Nombre legible a partir del archivo. Los descargadores de YouTube dejan cosas
+ * como "YTDown.com_YouTube_Best-of-Rock-90s_nsQ188AxD7U_009_128k.mp3", que en una
+ * lista no dice nada. Esto recorta la basura y deja el título.
+ * El archivo original se sigue mostrando abajo, en chico.
+ */
+export function prettyMediaName(filename: string): string {
+  let n = filename.replace(/\.[a-z0-9]{2,4}$/i, '');       // extensión
+  n = n.replace(/^YTDown\.com[_\-\s]*/i, '');             // prefijo del descargador
+  n = n.replace(/^YouTube[_\-\s]*/i, '');
+  n = n.replace(/[_\-]+\d{2,4}k$/i, '');                   // bitrate final: _128k
+  n = n.replace(/[_\-]+\d{1,4}$/, '');                    // índice final: _009
+  n = n.replace(/[_\-]+[A-Za-z0-9_-]{11}$/, '');          // id de YouTube
+  n = n.replace(/[_\-]+Media$/i, '');
+  n = n.replace(/[_\-]+/g, ' ');                          // guiones y guiones bajos
+  n = n.replace(/\s+/g, ' ').trim();
+  return n || filename;
 }
 
 export function formatHm(time: string | undefined | null): string {

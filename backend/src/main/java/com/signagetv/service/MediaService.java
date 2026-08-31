@@ -25,8 +25,11 @@ public class MediaService {
     private final UrlBuilder urlBuilder;
     private final RealtimeNotificationService realtime;
 
+    /** Duracion maxima aceptable que puede reportar el cliente (24 h). */
+    private static final int MAX_DURATION_SECONDS = 24 * 3600;
+
     @Transactional
-    public MediaItemDto upload(Long localId, MultipartFile file) {
+    public MediaItemDto upload(Long localId, MultipartFile file, Integer durationSeconds) {
         String mime = file.getContentType() != null ? file.getContentType() : "application/octet-stream";
         MediaType type = detectType(mime, file.getOriginalFilename());
 
@@ -46,6 +49,7 @@ public class MediaService {
                 .type(type)
                 .mimeType(mime)
                 .sizeBytes(file.getSize())
+                .durationSeconds(sanitizeDuration(durationSeconds))
                 .build();
 
         item = mediaRepo.save(item);
@@ -73,6 +77,27 @@ public class MediaService {
         // el borrado en cascada lo saca de la lista y si no avisamos seguirian
         // pidiendo una URL que ya no existe hasta el proximo poll.
         realtime.notifyPlaylistsChanged(localId);
+    }
+
+    /**
+     * Guarda la duracion solo si todavia no la teniamos. La calcula el navegador
+     * leyendo el propio archivo, asi que el servidor no necesita decodificar audio
+     * ni video; se acepta como dato de presentacion, no como algo critico.
+     */
+    @Transactional
+    public MediaItemDto setDurationIfMissing(Long localId, Long id, Integer seconds) {
+        MediaItem item = getOwned(localId, id);
+        Integer clean = sanitizeDuration(seconds);
+        if (clean != null && item.getDurationSeconds() == null) {
+            item.setDurationSeconds(clean);
+            item = mediaRepo.save(item);
+        }
+        return toDto(item);
+    }
+
+    private Integer sanitizeDuration(Integer seconds) {
+        if (seconds == null || seconds <= 0 || seconds > MAX_DURATION_SECONDS) return null;
+        return seconds;
     }
 
     public MediaItem getOwned(Long localId, Long id) {
