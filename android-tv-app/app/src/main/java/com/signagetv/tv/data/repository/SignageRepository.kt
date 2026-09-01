@@ -55,8 +55,12 @@ class SignageRepository(
 
     suspend fun getCurrentPlaylist(): CurrentPlaylistResponse =
         withContext(Dispatchers.IO) {
-            val pl = apiClient.api().getCurrentPlaylist()
-            CurrentPlaylistResponse(playlist = pl)
+            val res = apiClient.api().getCurrentPlaylist()
+            if (!res.isSuccessful) {
+                throw java.io.IOException("El servidor respondio ${res.code()}")
+            }
+            // 204 o cuerpo ausente = "todavia no tenes nada asignado". No es un error.
+            CurrentPlaylistResponse(playlist = res.body())
         }
 
     // ===== Media caching =====

@@ -178,8 +178,12 @@ class PlayerActivity : AppCompatActivity() {
                     Logger.d("Sin cambios; sigue el ciclo actual")
                 }
             } catch (t: Throwable) {
-                Logger.e("fetchAndStart failed", t)
-                if (initial) showMessage("Error: ${t.message}")
+                // En la pantalla de un local no se muestra un error tecnico: no le
+                // sirve a nadie y queda pesimo a la vista del publico. Queda en el
+                // log (adb logcat) y se reintenta en el proximo poll. Si ya habia
+                // algo reproduciendose, ni se toca.
+                Logger.e("No se pudo traer la playlist", t)
+                if (current == null) showMessage(getString(R.string.player_no_content))
             }
         }
     }
