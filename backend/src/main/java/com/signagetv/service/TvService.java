@@ -97,6 +97,12 @@ public class TvService {
     /**
      * Variante usada por la app TV: resuelve la TV por deviceId (header X-Device-Id)
      * dentro del local autenticado. Actualiza last_seen + online.
+     *
+     * <p>Si el dispositivo no figura en la base, se da de alta solo. Antes esto
+     * devolvia 404 y la TV quedaba muerta mostrando un error hasta que alguien
+     * fuera fisicamente a reinstalar la app: pasaba cada vez que se borraba una TV
+     * del panel. El cliente ya viene autenticado con las credenciales del local,
+     * asi que registrarlo no abre nada que no estuviera abierto.</p>
      */
     @Transactional
     public PlaylistDto getCurrentPlaylistForDevice(Long localId, String deviceId) {
@@ -104,7 +110,15 @@ public class TvService {
             throw new BadRequestException("Header X-Device-Id requerido");
         }
         Tv tv = tvRepo.findByLocalIdAndDeviceId(localId, deviceId)
-                .orElseThrow(() -> new NotFoundException("TV no registrada para deviceId=" + deviceId));
+                .orElseGet(() -> {
+                    log.info("TV desconocida device={} local={}: alta automatica", deviceId, localId);
+                    return tvRepo.save(Tv.builder()
+                            .localId(localId)
+                            .deviceId(deviceId)
+                            .nombre("TV sin nombre")
+                            .online(true)
+                            .build());
+                });
         tv.setLastSeen(LocalDateTime.now());
         tv.setOnline(true);
         tvRepo.save(tv);
