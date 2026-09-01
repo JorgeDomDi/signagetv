@@ -8,6 +8,7 @@ import com.signagetv.security.SecurityUtils;
 import com.signagetv.service.TvService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -34,8 +35,10 @@ public class TvController {
         return tvService.assignPlaylist(SecurityUtils.currentLocalId(), id, req.getPlaylistId());
     }
 
+    /** Igual que el endpoint de la TV: 204 cuando no hay nada asignado. */
     @GetMapping("/{id}/current")
-    public PlaylistDto current(@PathVariable Long id) {
-        return tvService.getCurrentPlaylist(SecurityUtils.currentLocalId(), id);
+    public ResponseEntity<PlaylistDto> current(@PathVariable Long id) {
+        PlaylistDto pl = tvService.getCurrentPlaylist(SecurityUtils.currentLocalId(), id);
+        return pl == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(pl);
     }
 }
