@@ -75,7 +75,15 @@ class PlaylistSelectActivity : AppCompatActivity() {
         binding.progress.visibility = if (loading) View.VISIBLE else View.GONE
     }
 
+    /** Evita que un doble clic del control remoto abra dos reproductores. */
+    private var choosing = false
+
     private fun onChoose(entry: PlaylistEntry) {
+        if (choosing) {
+            Logger.d("Seleccion ya en curso; ignoro el clic repetido")
+            return
+        }
+        choosing = true
         lifecycleScope.launch {
             try {
                 val tvId = app.prefs.tvId
@@ -92,6 +100,7 @@ class PlaylistSelectActivity : AppCompatActivity() {
                 finish()
             } catch (t: Throwable) {
                 Logger.e("Choose playlist failed", t)
+                choosing = false
             }
         }
     }

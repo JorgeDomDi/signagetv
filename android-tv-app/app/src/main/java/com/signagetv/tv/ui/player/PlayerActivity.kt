@@ -130,6 +130,29 @@ class PlayerActivity : AppCompatActivity() {
         startPolling()
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Volvemos a primer plano: retomamos donde estabamos.
+        exoPlayer?.playWhenReady = true
+        audioPlayer?.playWhenReady = true
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Si esta pantalla deja de estar visible no puede seguir sonando. Es la red
+        // de seguridad contra el audio duplicado: aunque por algun motivo quedaran
+        // dos reproductores, el que no esta a la vista se calla.
+        exoPlayer?.playWhenReady = false
+        audioPlayer?.playWhenReady = false
+    }
+
+    /** Con launchMode singleTask, relanzar la app entra por aca en vez de crear otra instancia. */
+    override fun onNewIntent(intent: android.content.Intent?) {
+        super.onNewIntent(intent)
+        Logger.i("Reproductor relanzado; reutilizo la instancia y refresco")
+        fetchAndStart(initial = false)
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) goImmersive()

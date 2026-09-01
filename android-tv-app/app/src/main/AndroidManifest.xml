@@ -44,9 +44,17 @@
             android:screenOrientation="landscape"
             android:theme="@style/Theme.SignageTV" />
 
+        <!--
+            launchMode singleTask: si el reproductor ya esta abierto, volver a
+            lanzarlo reutiliza la instancia existente en vez de apilar otra. Sin
+            esto, dos aperturas seguidas (un doble clic en el selector, o el
+            launcher de la TV relanzando la app) dejaban dos reproductores vivos y
+            se escuchaban DOS musicas de fondo a la vez.
+        -->
         <activity
             android:name=".ui.player.PlayerActivity"
             android:exported="false"
+            android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:screenOrientation="landscape"
             android:theme="@style/Theme.SignageTV.Fullscreen" />

@@ -82,19 +82,30 @@ export function formatHm(time: string | undefined | null): string {
   return `${(h ?? '00').padStart(2, '0')}:${(m ?? '00').padStart(2, '0')}`;
 }
 
+/**
+ * El backend serializa LocalDateTime sin marca de zona ("2026-09-01T02:05:25")
+ * pero los guarda en UTC. Si se lo damos crudo a Date, el navegador lo toma como
+ * hora local y en Argentina el "ultimo contacto" salia en negativo (hace -8603s).
+ */
+function parseServerDate(iso: string): number {
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(iso);
+  return new Date(hasZone ? iso : `${iso}Z`).getTime();
+}
+
 export function isOnline(lastSeen?: string | null, explicit?: boolean): boolean {
-  if (typeof explicit === 'boolean') return explicit;
-  if (!lastSeen) return false;
-  const t = new Date(lastSeen).getTime();
+  // Ojo: el flag `explicit` del backend se pone en true y no se baja nunca, asi
+  // que no sirve para saber si la TV sigue viva. Mandamos solo last_seen.
+  if (!lastSeen) return typeof explicit === 'boolean' ? explicit : false;
+  const t = parseServerDate(lastSeen);
   if (isNaN(t)) return false;
   return Date.now() - t < 2 * 60 * 1000; // 2 min
 }
 
 export function relativeTime(iso?: string | null): string {
   if (!iso) return 'nunca';
-  const t = new Date(iso).getTime();
+  const t = parseServerDate(iso);
   if (isNaN(t)) return 'nunca';
-  const diff = Date.now() - t;
+  const diff = Math.max(0, Date.now() - t);
   const s = Math.floor(diff / 1000);
   if (s < 60) return `hace ${s}s`;
   const m = Math.floor(s / 60);

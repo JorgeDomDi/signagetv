@@ -134,6 +134,7 @@ export const tvs = {
     client
       .put<Tv>(`/tvs/${id}/playlist`, { playlist_id: playlistId })
       .then((r) => r.data),
+  remove: (id: number) => client.delete<void>(`/tvs/${id}`).then((r) => r.data),
 };
 
 // ---- Super-admin ----

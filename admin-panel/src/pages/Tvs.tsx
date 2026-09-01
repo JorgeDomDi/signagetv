@@ -1,19 +1,23 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { MonitorPlay, MonitorOff, Settings, Loader2 } from 'lucide-react';
+import { MonitorPlay, MonitorOff, Settings, Loader2, Trash2 } from 'lucide-react';
 import { playlists as playlistsApi, tvs as tvsApi } from '@/api/endpoints';
 import { useFetch } from '@/hooks/useFetch';
 import { usePlaylistChannel } from '@/hooks/useWebSocket';
 import { Skeleton } from '@/components/Skeleton';
 import { EmptyState } from '@/components/EmptyState';
+import { Modal } from '@/components/Modal';
 import { isOnline, relativeTime } from '@/lib/format';
 import { apiErrorMessage } from '@/api/client';
 import { cn } from '@/lib/cn';
+import type { Tv } from '@/types';
 
 export default function Tvs() {
   const tvsQ = useFetch(() => tvsApi.list(), []);
   const playlistsQ = useFetch(() => playlistsApi.list(), []);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Tv | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   usePlaylistChannel(() => {
     void tvsQ.refetch();
@@ -33,6 +37,21 @@ export default function Tvs() {
       toast.error(apiErrorMessage(err, 'No se pudo asignar'));
     } finally {
       setSavingId(null);
+    }
+  }
+
+  async function confirmDeleteNow() {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await tvsApi.remove(confirmDelete.id);
+      tvsQ.setData((prev) => prev?.filter((t) => t.id !== confirmDelete.id) ?? null);
+      toast.success('TV eliminada');
+      setConfirmDelete(null);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'No se pudo eliminar'));
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -65,29 +84,40 @@ export default function Tvs() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {tvsQ.data!.map((tv) => {
-            const online = isOnline(tv.last_seen, tv.online);
+            // Por last_seen: el flag `online` del backend nunca se baja.
+            const online = isOnline(tv.last_seen);
             return (
               <article key={tv.id} className="card flex flex-col p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="grid h-10 w-10 place-items-center rounded-lg bg-slate-900 text-white">
                     <MonitorPlay className="h-5 w-5" />
                   </div>
-                  <span
-                    className={cn(
-                      'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium',
-                      online
-                        ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
-                        : 'bg-gray-100 text-gray-500 ring-1 ring-inset ring-gray-200',
-                    )}
-                  >
+                  <div className="flex items-center gap-1.5">
                     <span
                       className={cn(
-                        'h-1.5 w-1.5 rounded-full',
-                        online ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400',
+                        'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium',
+                        online
+                          ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
+                          : 'bg-gray-100 text-gray-500 ring-1 ring-inset ring-gray-200',
                       )}
-                    />
-                    {online ? 'En línea' : 'Desconectado'}
-                  </span>
+                    >
+                      <span
+                        className={cn(
+                          'h-1.5 w-1.5 rounded-full',
+                          online ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400',
+                        )}
+                      />
+                      {online ? 'En línea' : 'Desconectado'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(tv)}
+                      className="grid h-7 w-7 place-items-center rounded-md text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                      title="Eliminar esta TV"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-4 min-w-0">
@@ -133,6 +163,38 @@ export default function Tvs() {
           })}
         </div>
       )}
+
+      <Modal
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        title="Eliminar TV"
+        description="Se quita esta pantalla del listado."
+        footer={
+          <>
+            <button
+              className="btn-secondary"
+              onClick={() => setConfirmDelete(null)}
+              disabled={deleting}
+            >
+              Cancelar
+            </button>
+            <button className="btn-danger" onClick={confirmDeleteNow} disabled={deleting}>
+              {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
+              Eliminar
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-600">
+          ¿Seguro que querés eliminar{' '}
+          <strong>{confirmDelete?.nombre || 'esta TV'}</strong>?
+        </p>
+        <p className="mt-2 text-sm text-gray-500">
+          Si el televisor sigue encendido va a volver a aparecer solo en menos de un
+          minuto, pero sin playlist asignada. Para que no vuelva, apagá la TV o
+          desinstalá la app antes de borrarla.
+        </p>
+      </Modal>
     </div>
   );
 }

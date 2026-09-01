@@ -35,6 +35,12 @@ public class TvController {
         return tvService.assignPlaylist(SecurityUtils.currentLocalId(), id, req.getPlaylistId());
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        tvService.delete(SecurityUtils.currentLocalId(), id);
+        return ResponseEntity.noContent().build();
+    }
+
     /** Igual que el endpoint de la TV: 204 cuando no hay nada asignado. */
     @GetMapping("/{id}/current")
     public ResponseEntity<PlaylistDto> current(@PathVariable Long id) {

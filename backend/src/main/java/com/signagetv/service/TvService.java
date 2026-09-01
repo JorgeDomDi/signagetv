@@ -127,6 +127,20 @@ public class TvService {
 
     // ------------------------------------------------------------------------
 
+    /**
+     * Elimina una TV del panel. Si el aparato sigue encendido volvera a darse de
+     * alta solo en su proximo sondeo, pero sin playlist asignada: sirve para
+     * limpiar filas viejas de pantallas que ya no existen o que cambiaron de
+     * identidad.
+     */
+    @Transactional
+    public void delete(Long localId, Long tvId) {
+        Tv tv = tvRepo.findByIdAndLocalId(tvId, localId)
+                .orElseThrow(() -> new NotFoundException("TV no encontrada"));
+        tvRepo.delete(tv);
+        log.info("TV eliminada id={} local={} device={}", tvId, localId, tv.getDeviceId());
+    }
+
     private PlaylistDto resolveCurrent(Tv tv) {
         // 1) Schedule activo
         Optional<Schedule> active = pickActiveSchedule(tv.getLocalId(), LocalDateTime.now());
