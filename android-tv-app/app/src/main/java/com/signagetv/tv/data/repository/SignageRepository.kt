@@ -81,7 +81,7 @@ class SignageRepository(
                 throw java.io.IOException("Download failed ${resp.code} for $url")
             }
             val body = resp.body ?: throw java.io.IOException("Empty body for $url")
-            val tmp = File(dir, "$name.tmp")
+            val tmp = File(dir, name + TMP_SUFFIX)
             FileOutputStream(tmp).use { out ->
                 body.byteStream().copyTo(out)
             }
@@ -94,8 +94,58 @@ class SignageRepository(
         target
     }
 
+    /**
+     * Borra del cache todo archivo que no este en [keepUrls].
+     *
+     * La cache no se limpiaba nunca: cada archivo que la TV llegaba a mostrar
+     * quedaba en disco para siempre. Al cambiar de playlist se sumaba el contenido
+     * nuevo sin soltar el viejo, y con compilados de musica de 200 MB la app
+     * terminaba ocupando gigas.
+     *
+     * @return bytes liberados.
+     */
+    suspend fun pruneMediaCache(keepUrls: Collection<String>): Long = withContext(Dispatchers.IO) {
+        val dir = File(appContext.filesDir, "media")
+        if (!dir.isDirectory) return@withContext 0L
+
+        val keep = keepUrls.mapTo(HashSet()) { sha1(it) }
+        val now = System.currentTimeMillis()
+        var freed = 0L
+        var removed = 0
+
+        dir.listFiles()?.forEach { f ->
+            val base = f.name.removeSuffix(TMP_SUFFIX)
+            if (base in keep) return@forEach
+            // Una descarga a medio hacer se respeta un rato, por si sigue en curso.
+            if (f.name.endsWith(TMP_SUFFIX) && now - f.lastModified() < TMP_GRACE_MS) return@forEach
+
+            val size = f.length()
+            if (f.delete()) {
+                freed += size
+                removed++
+            }
+        }
+        if (removed > 0) {
+            Logger.i("Cache: borrados $removed archivo(s), ${freed / 1024 / 1024} MB liberados")
+        }
+        freed
+    }
+
+    /** Cuanto ocupa el contenido descargado, para dejarlo en el log. */
+    fun cacheSizeBytes(): Long {
+        val dir = File(appContext.filesDir, "media")
+        if (!dir.isDirectory) return 0L
+        return dir.listFiles()?.sumOf { it.length() } ?: 0L
+    }
+
     fun logout() {
         prefs.clearAuth()
+    }
+
+    companion object {
+        private const val TMP_SUFFIX = ".tmp"
+        /** Margen antes de borrar una descarga incompleta. */
+        private const val TMP_GRACE_MS = 30 * 60 * 1000L
     }
 
     private fun sha1(s: String): String {

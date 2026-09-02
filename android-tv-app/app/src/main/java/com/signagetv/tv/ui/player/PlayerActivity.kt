@@ -247,6 +247,26 @@ class PlayerActivity : AppCompatActivity() {
         binding.errorView.visibility = View.GONE
         syncBackgroundAudio(pl)
         startLoop()
+        pruneCache(pl)
+    }
+
+    /**
+     * Deja en disco unicamente lo que necesita la playlist que se acaba de aplicar.
+     * Al cambiar de playlist, el contenido de la anterior se libera en el acto.
+     */
+    private fun pruneCache(pl: PlaylistDto) {
+        val keep = ArrayList<String>(pl.items.size + 8)
+        pl.items.forEach { keep.add(it.media.url) }
+        pl.audioItems.orEmpty().forEach { keep.add(it.media.url) }
+
+        lifecycleScope.launch {
+            runCatching {
+                val antes = app.repository.cacheSizeBytes()
+                app.repository.pruneMediaCache(keep)
+                val despues = app.repository.cacheSizeBytes()
+                Logger.i("Cache: ${antes / 1024 / 1024} MB -> ${despues / 1024 / 1024} MB")
+            }.onFailure { Logger.w("No se pudo limpiar la cache: ${it.message}") }
+        }
     }
 
     private fun startLoop() {
