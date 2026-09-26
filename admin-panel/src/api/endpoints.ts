@@ -71,6 +71,17 @@ export const media = {
     return `${API_BASE}/api/v1/media/${id}/file${qs}`;
   },
   /**
+   * URL para bajar el archivo ORIGINAL (no la miniatura), con su nombre real.
+   * El parámetro `download` hace que el backend mande Content-Disposition:
+   * attachment, así el navegador lo guarda en vez de abrirlo en una pestaña.
+   */
+  downloadUrl: (id: number) => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const params = new URLSearchParams({ download: '1' });
+    if (token) params.set('token', token);
+    return `${API_BASE}/api/v1/media/${id}/file?${params.toString()}`;
+  },
+  /**
    * URL de la miniatura de baja resolución (solo imágenes), para previsualizar
    * en el panel sin descargar el archivo original de varios MB. El backend
    * (JwtFilter) acepta el token por query param también para .../thumb.

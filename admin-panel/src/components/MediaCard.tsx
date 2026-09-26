@@ -1,4 +1,4 @@
-import { Trash2, Film, Image as ImageIcon, Music2 } from 'lucide-react';
+import { Trash2, Film, Image as ImageIcon, Music2, Download } from 'lucide-react';
 import type { MediaItem } from '@/types';
 import { media } from '@/api/endpoints';
 import { formatBytes, formatDuration } from '@/lib/format';
@@ -78,19 +78,31 @@ export function MediaCard({
             </>
           )}
         </span>
-        {onDelete && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(item);
-            }}
-            className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-md bg-white/90 text-red-600 opacity-0 shadow-sm transition-opacity hover:bg-white group-hover:opacity-100"
-            title="Eliminar"
+        <div className="absolute right-2 top-2 flex items-center gap-1.5">
+          {/* Baja el archivo original, no la miniatura. */}
+          <a
+            href={media.downloadUrl(item.id)}
+            download={item.filename}
+            onClick={(e) => e.stopPropagation()}
+            className="grid h-7 w-7 place-items-center rounded-md bg-white/90 text-gray-600 shadow-sm transition-colors hover:bg-white hover:text-brand-700"
+            title={`Descargar ${item.filename} (original, ${formatBytes(item.size_bytes)})`}
           >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        )}
+            <Download className="h-3.5 w-3.5" />
+          </a>
+          {onDelete && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(item);
+              }}
+              className="grid h-7 w-7 place-items-center rounded-md bg-white/90 text-red-600 shadow-sm transition-colors hover:bg-white hover:text-red-700"
+              title="Eliminar"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
       <div className="px-3 py-2">
         <div className="truncate text-sm font-medium text-gray-900">

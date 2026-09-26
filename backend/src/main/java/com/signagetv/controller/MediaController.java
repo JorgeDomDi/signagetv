@@ -14,6 +14,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StreamUtils;
+
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -89,6 +92,7 @@ public class MediaController {
     public ResponseEntity<Resource> file(
             @PathVariable Long id,
             @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader,
+            @RequestParam(value = "download", required = false, defaultValue = "false") boolean download,
             HttpServletResponse response) throws Exception {
 
         MediaItem item = mediaService.getOwned(SecurityUtils.currentLocalId(), id);
@@ -147,9 +151,28 @@ public class MediaController {
                 .contentLength(size)
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "inline; filename=\"" + item.getFilename() + "\"")
+                        contentDisposition(item.getFilename(), download))
                 .header(HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
                 .body(new FileSystemResource(path));
+    }
+
+    /**
+     * Cabecera Content-Disposition.
+     *
+     * <p>{@code inline} es lo normal: asi el navegador muestra la imagen y la app
+     * de TV reproduce el archivo. Con {@code ?download=1} pasa a {@code attachment}
+     * para que el panel pueda bajar el ORIGINAL (no la miniatura) con su nombre
+     * real, en vez de abrirlo en una pestania.</p>
+     *
+     * <p>Se mandan las dos formas del nombre: la version ASCII para navegadores
+     * viejos y {@code filename*} en UTF-8 para los acentos y espacios.</p>
+     */
+    private String contentDisposition(String filename, boolean asAttachment) {
+        String name = (filename == null || filename.isBlank()) ? "archivo" : filename;
+        String ascii = name.replaceAll("[^\\x20-\\x7E]", "_").replace("\"", "'");
+        String utf8 = URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20");
+        return (asAttachment ? "attachment" : "inline")
+                + "; filename=\"" + ascii + "\"; filename*=UTF-8''" + utf8;
     }
 
     /**
@@ -166,12 +189,12 @@ public class MediaController {
 
         // Fallback al original si no hay miniatura (p. ej. formato no soportado).
         if (thumbPath == null) {
-            return file(id, null, response);
+            return file(id, null, false, response);
         }
 
         Path path = storageService.resolve(thumbPath);
         if (!Files.exists(path)) {
-            return file(id, null, response);
+            return file(id, null, false, response);
         }
 
         long size = Files.size(path);
